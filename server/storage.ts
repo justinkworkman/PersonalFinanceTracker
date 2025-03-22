@@ -133,7 +133,13 @@ export class MemStorage implements IStorage {
       // Calculate the date for this month based on the relative date type
       const newDate = this.getRecurringDateForMonth(transaction, year, month);
       
+      // Get current date to determine if this is a future month
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-based
+      
       // Default values for status and isCleared
+      // Always default to "pending" for future months
       let status: "pending" | "paid" | "cleared" = "pending";
       let isCleared = false;
       
@@ -142,8 +148,13 @@ export class MemStorage implements IStorage {
       const monthlyStatus = this.monthlyStatuses.get(statusKey);
       
       if (monthlyStatus) {
+        // If there's an explicit monthly status set, use it
         status = monthlyStatus.status;
         isCleared = monthlyStatus.isCleared;
+      } else if (year > currentYear || (year === currentYear && month > currentMonth)) {
+        // For future months with no explicit status, always default to pending
+        status = "pending";
+        isCleared = false;
       }
       
       // Create a virtual transaction with the updated date and monthly status
@@ -358,8 +369,20 @@ export class MemStorage implements IStorage {
       .filter(t => t.type === "expense")
       .reduce((total, t) => total + t.amount, 0);
     
+    // Get current date to determine if this is a future month
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-based
+    
     const totalTransactions = transactions.length;
-    const paidTransactions = transactions.filter(t => t.status === "paid" || t.status === "cleared").length;
+    
+    // Count transactions marked as paid or cleared
+    // For future months, only count transactions with explicit monthly status
+    const paidTransactions = transactions.filter(t => {
+      // Only count transactions that are explicitly marked as paid or cleared
+      return (t.status === "paid" || t.status === "cleared");
+    }).length;
+    
     const pendingTransactions = totalTransactions - paidTransactions;
     const percentPaid = totalTransactions > 0 ? (paidTransactions / totalTransactions) * 100 : 0;
     

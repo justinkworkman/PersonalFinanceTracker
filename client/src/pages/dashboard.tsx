@@ -51,11 +51,23 @@ export default function Dashboard() {
   };
   
   const handleTransactionCreated = () => {
-    // Invalidate and refetch queries
-    queryClient.invalidateQueries({ queryKey: ['/api/transactions/month'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
+    // Invalidate and refetch queries with exact year and month
+    queryClient.invalidateQueries({ queryKey: ['/api/transactions/month', year, month] });
+    queryClient.invalidateQueries({ queryKey: ['/api/summary', year, month] });
+    
+    // Also invalidate transactions for adjacent months, which might be affected by recurring transactions
+    const nextMonthYear = month === 12 ? year + 1 : year;
+    const nextMonthNumber = month === 12 ? 1 : month + 1;
+    
+    const prevMonthYear = month === 1 ? year - 1 : year;
+    const prevMonthNumber = month === 1 ? 12 : month - 1;
+    
+    queryClient.invalidateQueries({ queryKey: ['/api/transactions/month', nextMonthYear, nextMonthNumber] });
+    queryClient.invalidateQueries({ queryKey: ['/api/transactions/month', prevMonthYear, prevMonthNumber] });
     
     setIsModalOpen(false);
+    setEditingTransaction(null); // Ensure editing transaction is reset
+    
     toast({
       title: editingTransaction ? "Transaction updated" : "Transaction created",
       description: editingTransaction 

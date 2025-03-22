@@ -87,53 +87,56 @@ export default function TransactionModal({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      type: "expense",
+      type: "expense" as const,
       description: "",
       amount: undefined,
       date: new Date(),
-      status: "pending",
-      recurrence: "once",
+      status: "pending" as const,
+      recurrence: "once" as const,
       categoryId: undefined,
       isCleared: false,
-      relativeDateType: "fixed",
+      relativeDateType: "fixed" as const,
       dayOfMonth: undefined
     },
   });
   
-  // Update form with transaction data when editing
+  // Default form values for new transactions
+  const defaultValues: Partial<FormValues> = {
+    type: "expense" as const,
+    description: "",
+    amount: undefined,
+    date: new Date(),
+    status: "pending" as const,
+    recurrence: "once" as const,
+    categoryId: undefined,
+    isCleared: false,
+    relativeDateType: "fixed" as const,
+    dayOfMonth: undefined
+  };
+
+  // Update form with transaction data when editing, or clear for new entries
   useEffect(() => {
     if (transaction) {
       const isRelativeDate = transaction.relativeDateType && transaction.relativeDateType !== "fixed";
       setShowRelativeDateOptions(isRelativeDate);
       
       form.reset({
-        type: transaction.type,
+        type: transaction.type as "expense" | "income",
         description: transaction.description,
         amount: transaction.amount,
         date: new Date(transaction.date),
         categoryId: transaction.categoryId,
-        status: transaction.status,
-        recurrence: transaction.recurrence,
+        status: transaction.status as "pending" | "paid" | "cleared",
+        recurrence: transaction.recurrence as "once" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
         isCleared: transaction.isCleared,
-        relativeDateType: transaction.relativeDateType || "fixed",
+        relativeDateType: (transaction.relativeDateType || "fixed") as "fixed" | "first_day" | "last_day" | "custom",
         dayOfMonth: transaction.dayOfMonth || undefined
       });
     } else {
       setShowRelativeDateOptions(false);
-      form.reset({
-        type: "expense",
-        description: "",
-        amount: undefined,
-        date: new Date(),
-        status: "pending",
-        recurrence: "once",
-        categoryId: undefined,
-        isCleared: false,
-        relativeDateType: "fixed",
-        dayOfMonth: undefined
-      });
+      form.reset(defaultValues);
     }
-  }, [transaction, form]);
+  }, [transaction, form, isOpen]); // Added isOpen to dependencies to reset when modal opens
   
   // Filter categories based on transaction type
   const filteredCategories = categories?.filter(
@@ -165,7 +168,7 @@ export default function TransactionModal({
       } else {
         // For fixed dates, clear relative date fields
         submissionData.relativeDateType = "fixed";
-        submissionData.dayOfMonth = null;
+        submissionData.dayOfMonth = undefined;
       }
       
       if (transaction) {

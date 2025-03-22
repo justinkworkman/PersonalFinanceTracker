@@ -13,6 +13,12 @@ echo "PostgreSQL is up"
 echo "Initializing database..."
 npm run db:push
 
+# Set up the default categories if needed
+echo "Setting up default data..."
+if [ "$INITIALIZE_DEFAULT_DATA" = "true" ]; then
+  node server/init-data.js
+fi
+
 # Start the application
 echo "Starting application..."
 exec "$@"

@@ -1,8 +1,3 @@
-# =====================================================================
-# DEPRECATED: This Dockerfile is kept for reference but is no longer used.
-# Please use the separate client/Dockerfile and server/Dockerfile instead.
-# =====================================================================
-
 FROM node:20-slim
 
 # Install PostgreSQL client for database connection
@@ -14,16 +9,19 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of the application
-COPY . .
+# Copy server and shared folders
+COPY server/ ./server/
+COPY shared/ ./shared/
+COPY drizzle.config.ts ./
 
-# Make scripts executable
-RUN chmod +x docker-entrypoint.sh wait-for-db.sh init-db.sh
+# Copy scripts needed for database initialization
+COPY wait-for-db.sh docker-entrypoint.sh ./
+RUN chmod +x wait-for-db.sh docker-entrypoint.sh
 
-# Build the application
+# Build the server
 RUN npm run build
 
-# Expose the port the app runs on
+# Expose the port the API runs on
 EXPOSE 5000
 
 # Set environment variables (will be overridden by docker-compose values)

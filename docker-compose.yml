@@ -1,12 +1,25 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
+  client:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
     ports:
       - "5000:5000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgres://postgres:postgres@db:5432/finance
@@ -15,8 +28,14 @@ services:
       - PGPASSWORD=postgres
       - PGDATABASE=finance
       - PGPORT=5432
+      - INITIALIZE_DEFAULT_DATA=true
     restart: unless-stopped
-    # The entrypoint script will handle waiting for the database and running migrations
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   db:
     image: postgres:16-alpine

@@ -1,6 +1,5 @@
 import { eq, and, sql, asc, desc } from 'drizzle-orm';
 import { db } from './db';
-import postgres from 'postgres';
 import {
   categories,
   transactions,
@@ -18,14 +17,6 @@ import {
 } from '@shared/schema';
 import { IStorage } from './storage';
 import { log } from './vite';
-
-// Create a database connection
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL is not defined');
-}
-// Initialize postgres client for raw queries
-const client = postgres(connectionString);
 
 export class PgStorage implements IStorage {
   async getCategories(): Promise<Category[]> {
@@ -314,35 +305,36 @@ export class PgStorage implements IStorage {
       
       log(`Updating transaction ${id}: ${JSON.stringify(formattedUpdates)}`, 'pgStorage');
       
-      // Build a simpler update query using SQL template tags
-      const sqlSetParts: string[] = [];
-      const sqlValues: any[] = [id]; // Start with the ID
-      let paramIndex = 2; // Start at 2 because $1 will be the ID
+      // Use a more direct approach with SQL
+      // We use the database directly via execute_sql_tool since we're having issues with the Drizzle ORM
+      const updateColumns = Object.keys(formattedUpdates);
+      if (updateColumns.length === 0) {
+        return transaction;
+      }
       
-      Object.entries(formattedUpdates).forEach(([key, value]) => {
-        sqlSetParts.push(`${key} = $${paramIndex}`);
-        sqlValues.push(value);
-        paramIndex++;
-      });
+      // Manually construct SQL update statement for each field
+      let updateQuery = `UPDATE transactions SET `;
+      updateQuery += updateColumns.map(col => {
+        let placeholder = formattedUpdates[col];
+        if (typeof placeholder === 'string') {
+          placeholder = `'${placeholder.replace(/'/g, "''")}'`;
+        } else if (placeholder === null) {
+          placeholder = "NULL";
+        }
+        return `${col} = ${placeholder}`;
+      }).join(', ');
+      updateQuery += ` WHERE id = ${id} RETURNING *;`;
       
-      // Use a template string for the SQL
-      const updateQuery = `
-        UPDATE transactions
-        SET ${sqlSetParts.join(', ')}
-        WHERE id = $1
-        RETURNING *
-      `;
+      // Use db execute sql tool to update
+      const resultRaw = await db.execute(sql.raw(updateQuery));
       
-      // Use the db object to run a simple query
-      const result = await sql.raw(updateQuery, ...sqlValues)
-        .execute(db);
-      
-      if (!result || result.length === 0) {
+      if (!resultRaw || !Array.isArray(resultRaw) || resultRaw.length === 0) {
         log(`No transaction found with id ${id}`, 'pgStorage');
         return undefined;
       }
       
-      return result[0] as Transaction;
+      log(`Updated transaction: ${JSON.stringify(resultRaw[0])}`, 'pgStorage');
+      return resultRaw[0] as Transaction;
     } catch (error) {
       console.error(`Error updating transaction ${id}:`, error);
       throw error;

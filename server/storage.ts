@@ -264,16 +264,48 @@ export class MemStorage implements IStorage {
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
     const id = this.transactionCurrentId++;
     
-    // For recurring transactions, ensure we have an originalDate
+    // Adjust the date for recurring transactions with custom day of month
+    let dateValue = insertTransaction.date;
     let originalDate: string | null = insertTransaction.originalDate || null;
-    if (insertTransaction.recurrence !== "once" && !originalDate) {
-      originalDate = insertTransaction.date;
+    
+    // If this is a recurring transaction with a relative date (custom day of month)
+    if (insertTransaction.recurrence !== "once" && 
+        insertTransaction.relativeDateType === "custom" && 
+        insertTransaction.dayOfMonth) {
+      
+      // Parse the input date to get the month and year
+      const inputDate = new Date(insertTransaction.date);
+      const year = inputDate.getFullYear();
+      const month = inputDate.getMonth() + 1; // JavaScript months are 0-based
+      
+      // Create a new date with the custom day of month
+      const adjustedDate = getRelativeDate(
+        year,
+        month,
+        "custom",
+        insertTransaction.dayOfMonth,
+        insertTransaction.date
+      );
+      
+      // Update the date value
+      dateValue = adjustedDate.toISOString();
+      
+      // Store the original input date for future reference
+      if (!originalDate) {
+        originalDate = dateValue;
+      }
+    } 
+    // For other recurring transactions, ensure we have an originalDate
+    else if (insertTransaction.recurrence !== "once" && !originalDate) {
+      originalDate = dateValue;
     }
     
     // Create the transaction with default values for required fields
     const transaction: Transaction = { 
       id, 
       ...insertTransaction,
+      // Override with adjusted date if necessary
+      date: dateValue,
       // Make sure we have all required fields by setting defaults
       type: insertTransaction.type || "expense",
       status: insertTransaction.status || "pending",
@@ -307,16 +339,41 @@ export class MemStorage implements IStorage {
       dateValue = newDate.toISOString();
     }
     
+    // Determine whether we need to adjust the date based on relative date settings
+    const relativeDateType = updates.relativeDateType || existingTransaction.relativeDateType;
+    const dayOfMonth = updates.dayOfMonth !== undefined ? updates.dayOfMonth : existingTransaction.dayOfMonth;
+    const recurrence = updates.recurrence || existingTransaction.recurrence;
+    
+    // If this is a recurring transaction with custom day of month, adjust the date
+    if (recurrence !== "once" && relativeDateType === "custom" && dayOfMonth) {
+      // Get the year and month from the current date value
+      const currentDate = new Date(dateValue);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1; // JavaScript months are 0-based
+      
+      // Create a new date with the custom day of month
+      const adjustedDate = getRelativeDate(
+        year,
+        month,
+        "custom",
+        dayOfMonth,
+        dateValue
+      );
+      
+      // Update the date value
+      dateValue = adjustedDate.toISOString();
+    }
+    
     // Ensure we have the correct originalDate for recurring transactions
     let originalDateValue: string | null = updates.originalDate || existingTransaction.originalDate;
     
     // If recurrence is being updated to be recurring, and there's no originalDate, use the transaction date
-    if (updates.recurrence && updates.recurrence !== "once" && !originalDateValue) {
+    if (recurrence !== "once" && !originalDateValue) {
       originalDateValue = dateValue;
     }
     
     // If recurrence is being updated to be non-recurring, clear originalDate
-    if (updates.recurrence === "once") {
+    if (recurrence === "once") {
       originalDateValue = null;
     }
     

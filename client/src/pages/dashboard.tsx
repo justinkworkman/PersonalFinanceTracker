@@ -125,31 +125,28 @@ export default function Dashboard() {
         <CategoryCard categories={summary?.categories || []} />
       </div>
       
-      {/* Calendar and Transactions List */}
-      <div className={`grid grid-cols-1 ${!isMobile ? 'lg:grid-cols-3' : ''} gap-6 w-full`}>
-        {/* Only show calendar on non-mobile devices */}
-        {!isMobile && (
-          <div className="lg:col-span-2">
-            <CalendarView 
-              calendarWeeks={calendarWeeks}
-              transactions={transactions || []}
-              month={selectedDate.getMonth()}
-              year={selectedDate.getFullYear()}
-              onPrevMonth={prevMonth}
-              onNextMonth={nextMonth}
-              goToMonth={goToMonth}
-            />
-          </div>
-        )}
-        
-        {/* Transaction list takes full width on mobile */}
+      {/* Transactions List */}
+      <div className="w-full mb-6">
+        <TransactionsList 
+          transactions={transactions || []} 
+          onTransactionClick={handleEditTransaction}
+        />
+      </div>
+      
+      {/* Calendar - Only show on non-mobile devices */}
+      {!isMobile && (
         <div className="w-full">
-          <TransactionsList 
-            transactions={transactions || []} 
-            onTransactionClick={handleEditTransaction}
+          <CalendarView 
+            calendarWeeks={calendarWeeks}
+            transactions={transactions || []}
+            month={selectedDate.getMonth()}
+            year={selectedDate.getFullYear()}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+            goToMonth={goToMonth}
           />
         </div>
-      </div>
+      )}
       
       {/* Transaction Modal */}
       <TransactionModal 

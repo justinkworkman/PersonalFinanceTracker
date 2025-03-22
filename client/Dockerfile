@@ -2,17 +2,29 @@ FROM node:20-slim AS build
 
 WORKDIR /app
 
+# Accept build arguments
+ARG NODE_ENV=production
+
+# Set environment variables
+ENV NODE_ENV=${NODE_ENV}
+
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy client and shared folders
-COPY client/ ./client/
-COPY shared/ ./shared/
-COPY postcss.config.js tailwind.config.ts theme.json vite.config.ts ./
+# Copy the entire project (needed for build context)
+COPY . .
 
-# Build the client
-RUN npm run build
+# First, create a custom build script to avoid the entry point issue
+# Making sure to explicitly set the working directory and add debugging
+RUN echo '#!/bin/bash\necho "Current directory: $(pwd)"\nls -la\necho "Changing to client directory..."\ncd /app/client\necho "Now in: $(pwd)"\nls -la\necho "Running Vite build..."\nNODE_ENV=production npx vite build\necho "Build complete, checking output:"\nls -la dist' > build-client.sh
+RUN chmod +x build-client.sh
+
+# Run our custom build script that starts in the client directory
+RUN ./build-client.sh
+
+# Add a step to check what's in the dist directory
+RUN ls -la /app/client/dist || echo "client/dist not found"
 
 # Use nginx to serve the static files
 FROM nginx:alpine
@@ -21,7 +33,9 @@ FROM nginx:alpine
 RUN apk add --no-cache curl
 
 # Copy the built client files to nginx's serving directory
-COPY --from=build /app/dist /usr/share/nginx/html
+# In development build, Vite outputs to client/dist
+# But for Docker build, it should be in client/dist after our custom script
+COPY --from=build /app/client/dist /usr/share/nginx/html
 
 # Copy a custom nginx configuration to properly handle SPA routing
 RUN echo 'server { \

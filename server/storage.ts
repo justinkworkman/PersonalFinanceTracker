@@ -209,7 +209,7 @@ export class MemStorage implements IStorage {
     const id = this.transactionCurrentId++;
     
     // For recurring transactions, ensure we have an originalDate
-    let originalDate = insertTransaction.originalDate;
+    let originalDate: string | null = insertTransaction.originalDate || null;
     if (insertTransaction.recurrence !== "once" && !originalDate) {
       originalDate = insertTransaction.date;
     }
@@ -252,7 +252,7 @@ export class MemStorage implements IStorage {
     }
     
     // Ensure we have the correct originalDate for recurring transactions
-    let originalDateValue = updates.originalDate || existingTransaction.originalDate;
+    let originalDateValue: string | null = updates.originalDate || existingTransaction.originalDate;
     
     // If recurrence is being updated to be recurring, and there's no originalDate, use the transaction date
     if (updates.recurrence && updates.recurrence !== "once" && !originalDateValue) {
@@ -261,7 +261,7 @@ export class MemStorage implements IStorage {
     
     // If recurrence is being updated to be non-recurring, clear originalDate
     if (updates.recurrence === "once") {
-      originalDateValue = undefined;
+      originalDateValue = null;
     }
     
     // Update the transaction with new values

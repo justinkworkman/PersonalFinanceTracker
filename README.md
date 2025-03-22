@@ -1,95 +1,84 @@
 # Personal Finance Web Application
 
-A comprehensive personal finance management web application for tracking expenses, income, and visualizing financial data.
+A comprehensive expense tracking, visualization, and personal finance management application with an intuitive user interface.
 
 ## Features
 
-- Expense and income tracking
-- Recurring and one-time transaction support
-- Multiple transaction statuses (pending, paid, cleared)
-- Monthly financial summary
-- Calendar view of transactions
+- Track monthly expenses and income
+- Support for recurring transactions with relative dates
+- Mark expenses as paid/pending and cleared/uncleared
+- Calendar view with transaction details
+- Monthly summary with income, expenses, and remaining balance
 - Category-based expense analysis
+- Payment status tracking
 - Mobile-responsive design
 
-## Deploying with Docker
+## Technology Stack
 
-This application can be easily deployed using Docker and Docker Compose.
+- **Frontend**: React.js with TypeScript, Tailwind CSS, shadcn/ui
+- **Backend**: Node.js with Express
+- **Database**: PostgreSQL with Drizzle ORM
+- **State Management**: React Query for data fetching and caching
+- **Containerization**: Docker and Docker Compose
+
+## Getting Started
 
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Docker Compose](https://docs.docker.com/compose/install/)
 
-### Running the Application
+### Local Development
 
-1. Clone the repository to your local machine
-2. Navigate to the project directory
-3. Build and start the containers:
+To start the development server:
+
+```bash
+npm install
+npm run dev
+```
+
+This will start both the React frontend and Node.js backend in development mode.
+
+### Deployment with Docker
+
+To deploy the application using Docker:
+
+1. Build and start the containers:
 
 ```bash
 docker-compose up -d
 ```
 
-4. Access the application at `http://localhost:5000`
+2. Access the application at http://localhost:5000
 
-The application will automatically connect to a PostgreSQL database container.
-
-### Stopping the Application
-
-To stop the containers:
+3. To stop the application:
 
 ```bash
 docker-compose down
 ```
 
-To stop the containers and remove the volumes (will delete all data):
-
-```bash
-docker-compose down -v
-```
-
-### Viewing Logs
-
-To view the logs of the running containers:
+4. To see logs:
 
 ```bash
 docker-compose logs -f
 ```
 
-## Development
+## Database Schema
 
-For local development without Docker:
+The application uses the following main tables:
 
-1. Install Node.js (v18 or higher)
-2. Install PostgreSQL
-3. Set up environment variables as shown in the docker-compose.yml file
-4. Install dependencies:
+- **categories**: Expense and income categories
+- **transactions**: Financial transactions (both recurring and one-time)
+- **monthly_transaction_status**: Tracks paid/cleared status per month for recurring transactions
 
-```bash
-npm install
-```
+## Project Structure
 
-5. Run database migrations:
+- `/client`: React frontend application
+- `/server`: Express backend API
+- `/shared`: Shared types and schemas used by both frontend and backend
+- `/docker-compose.yml`: Docker Compose configuration for easy deployment
+- `/Dockerfile`: Docker configuration for containerization
 
-```bash
-npm run db:push
-```
+## License
 
-6. Start the development server:
-
-```bash
-npm run dev
-```
-
-## Environment Variables
-
-The following environment variables can be configured:
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `PGHOST`: PostgreSQL host
-- `PGUSER`: PostgreSQL user
-- `PGPASSWORD`: PostgreSQL password
-- `PGDATABASE`: PostgreSQL database name
-- `PGPORT`: PostgreSQL port
-- `NODE_ENV`: Set to 'production' for production mode
+MIT

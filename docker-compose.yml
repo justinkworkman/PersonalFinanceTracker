@@ -6,8 +6,7 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgres://postgres:postgres@db:5432/finance
@@ -17,9 +16,7 @@ services:
       - PGDATABASE=finance
       - PGPORT=5432
     restart: unless-stopped
-    volumes:
-      - ./:/app
-      - /app/node_modules
+    command: ["./wait-for-db.sh", "db", "sh", "-c", "npm run db:push && npm start"]
 
   db:
     image: postgres:16-alpine
@@ -34,7 +31,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
 

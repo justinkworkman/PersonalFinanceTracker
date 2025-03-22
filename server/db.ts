@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { Pool } from '@neondatabase/serverless';
+import postgres from 'postgres';
 import * as schema from '@shared/schema';
 import { log } from './vite';
 
@@ -10,11 +10,11 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not defined');
 }
 
-// Initialize Postgres client with Neon serverless driver
-const pool = new Pool({ connectionString });
+// Initialize postgres client for Drizzle
+const client = postgres(connectionString);
 
 // Create drizzle instance
-export const db = drizzle(pool, { schema });
+export const db = drizzle(client, { schema });
 
 // Run migrations or initialize tables
 export async function initDb() {
@@ -22,50 +22,56 @@ export async function initDb() {
     log('Initializing database...', 'db');
     
     // Check if categories table exists, if not create the tables
-    const result = await pool.query(`
+    const result = await client`
       SELECT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'categories'
       );
-    `);
+    `;
     
-    const tablesExist = result.rows[0].exists;
+    const tablesExist = result[0].exists;
     
     if (!tablesExist) {
       log('Creating database tables...', 'db');
       
-      // Create enums
-      await pool.query(`
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_type') THEN
-            CREATE TYPE transaction_type AS ENUM ('expense', 'income');
-          END IF;
-          
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_status') THEN
-            CREATE TYPE transaction_status AS ENUM ('pending', 'paid', 'cleared');
-          END IF;
-          
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'recurrence') THEN
-            CREATE TYPE recurrence AS ENUM ('once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly');
-          END IF;
-          
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'relative_date_type') THEN
-            CREATE TYPE relative_date_type AS ENUM ('fixed', 'first_day', 'last_day', 'custom');
-          END IF;
-        END
-        $$;
-      `);
+      // Create enums one by one
+      log('Creating transaction_type enum...', 'db');
+      const typeEnumExists = await client`SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_type')`;
+      if (!typeEnumExists[0].exists) {
+        await client`CREATE TYPE transaction_type AS ENUM ('expense', 'income')`;
+      }
       
-      // Create tables
-      await pool.query(`
+      log('Creating transaction_status enum...', 'db');
+      const statusEnumExists = await client`SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_status')`;
+      if (!statusEnumExists[0].exists) {
+        await client`CREATE TYPE transaction_status AS ENUM ('pending', 'paid', 'cleared')`;
+      }
+      
+      log('Creating recurrence enum...', 'db');
+      const recurrenceEnumExists = await client`SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'recurrence')`;
+      if (!recurrenceEnumExists[0].exists) {
+        await client`CREATE TYPE recurrence AS ENUM ('once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly')`;
+      }
+      
+      log('Creating relative_date_type enum...', 'db');
+      const relativeDateTypeEnumExists = await client`SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'relative_date_type')`;
+      if (!relativeDateTypeEnumExists[0].exists) {
+        await client`CREATE TYPE relative_date_type AS ENUM ('fixed', 'first_day', 'last_day', 'custom')`;
+      }
+      
+      // Create tables one by one
+      log('Creating categories table...', 'db');
+      await client`
         CREATE TABLE IF NOT EXISTS categories (
           id SERIAL PRIMARY KEY,
           name TEXT NOT NULL,
           type transaction_type NOT NULL
-        );
-        
+        )
+      `;
+      
+      log('Creating transactions table...', 'db');
+      await client`
         CREATE TABLE IF NOT EXISTS transactions (
           id SERIAL PRIMARY KEY,
           type transaction_type NOT NULL,
@@ -80,8 +86,11 @@ export async function initDb() {
           original_date TIMESTAMP WITH TIME ZONE,
           day_of_month INTEGER,
           created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-        );
-        
+        )
+      `;
+      
+      log('Creating monthly_transaction_status table...', 'db');
+      await client`
         CREATE TABLE IF NOT EXISTS monthly_transaction_status (
           transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
           year INTEGER NOT NULL,
@@ -89,11 +98,11 @@ export async function initDb() {
           status transaction_status NOT NULL DEFAULT 'pending',
           is_cleared BOOLEAN NOT NULL DEFAULT false,
           PRIMARY KEY (transaction_id, year, month)
-        );
-      `);
+        )
+      `;
       
       // Insert default categories
-      await pool.query(`
+      await client`
         INSERT INTO categories (name, type) VALUES
         ('Housing', 'expense'),
         ('Utilities', 'expense'),
@@ -115,7 +124,7 @@ export async function initDb() {
         ('Interest', 'income'),
         ('Bonus', 'income'),
         ('Other Income', 'income');
-      `);
+      `;
       
       log('Database tables created successfully!', 'db');
     } else {

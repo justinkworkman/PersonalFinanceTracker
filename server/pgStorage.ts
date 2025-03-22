@@ -245,11 +245,24 @@ export class PgStorage implements IStorage {
     try {
       log(`Creating transaction: ${JSON.stringify(insertTransaction)}`, 'pgStorage');
       
-      const result = await db.insert(schema.transactions).values({
-        ...insertTransaction,
-        date: new Date(insertTransaction.date).toISOString(),
-        originalDate: insertTransaction.originalDate ? new Date(insertTransaction.originalDate).toISOString() : null
-      }).returning();
+      // Prepare transaction data with correct field names
+      const transactionData = {
+        description: insertTransaction.description,
+        amount: insertTransaction.amount,
+        date: insertTransaction.date,
+        type: insertTransaction.type,
+        category_id: insertTransaction.categoryId || null, // Snake case for database columns
+        status: insertTransaction.status || 'pending',
+        recurrence: insertTransaction.recurrence || 'once',
+        is_cleared: insertTransaction.isCleared || false, // Snake case
+        relative_date_type: insertTransaction.relativeDateType || 'fixed', // Snake case
+        original_date: insertTransaction.originalDate || null, // Snake case
+        day_of_month: insertTransaction.dayOfMonth || null, // Snake case
+        created_at: new Date().toISOString() // Snake case, add current timestamp
+      };
+      
+      // Use drizzle-orm insert function
+      const result = await db.insert(schema.transactions).values(transactionData).returning();
       
       log(`Created transaction: ${JSON.stringify(result[0])}`, 'pgStorage');
       return result[0];
@@ -413,7 +426,8 @@ export class PgStorage implements IStorage {
       }
       
       // Fill in category names
-      for (const [categoryId, data] of categoryMap) {
+      // Use Array.from to convert the Map entries to an array to avoid the downlevelIteration error
+      for (const [categoryId, data] of Array.from(categoryMap.entries())) {
         // Get category details if not already known
         if (!data.name) {
           try {

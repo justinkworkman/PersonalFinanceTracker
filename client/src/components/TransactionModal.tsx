@@ -37,7 +37,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { CalendarIcon, Trash2Icon } from "lucide-react";
 import { 
   insertTransactionSchema, 
   Transaction,
@@ -47,6 +58,7 @@ import {
   getDaysInMonth
 } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { useDeleteTransaction } from "@/hooks/useTransactions";
 import { cn } from "@/lib/utils";
 
 // Extend the schema for form validation

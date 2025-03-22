@@ -16,7 +16,7 @@ services:
       - PGDATABASE=finance
       - PGPORT=5432
     restart: unless-stopped
-    command: ["./wait-for-db.sh", "db", "sh", "-c", "npm run db:push && npm start"]
+    # The entrypoint script will handle waiting for the database and running migrations
 
   db:
     image: postgres:16-alpine

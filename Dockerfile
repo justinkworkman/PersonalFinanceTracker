@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Install PostgreSQL client for wait script
+# Install PostgreSQL client for database connection
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -12,8 +12,8 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
-# Make wait-for script executable
-RUN chmod +x wait-for-db.sh
+# Make scripts executable
+RUN chmod +x docker-entrypoint.sh wait-for-db.sh init-db.sh
 
 # Build the application
 RUN npm run build
@@ -25,5 +25,8 @@ EXPOSE 5000
 ENV NODE_ENV=production
 ENV DATABASE_URL=postgres://postgres:postgres@db:5432/finance
 
-# Default command if not overridden in docker-compose
-CMD ["sh", "-c", "npm run db:push && npm start"]
+# Set up entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+# Default command
+CMD ["npm", "start"]

@@ -144,6 +144,7 @@ export default function Dashboard() {
             onPrevMonth={prevMonth}
             onNextMonth={nextMonth}
             goToMonth={goToMonth}
+            onTransactionClick={handleEditTransaction}
           />
         </div>
       )}

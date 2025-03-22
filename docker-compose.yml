@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # PostgreSQL service
+  db:
+    image: postgres:13
+    container_name: my_postgres_db
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # ExpressJS API service
+  server:
+    build:
+      context: ./server
+    container_name: my_express_server
+    environment:
+      DB_HOST: db
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+      DB_NAME: mydb
+    depends_on:
+      - db
+    networks:
+      - backend
+    ports:
+      - "5000:5000"
+    command: npm run start
+
+  # Next.js client service (Vite as the builder)
+  client:
+    build:
+      context: ./client
+    container_name: my_nextjs_client
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:5000 # Adjust the API URL if needed
+    depends_on:
+      - server
+    networks:
+      - backend
+    ports:
+      - "3000:3000"
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    driver: bridge

@@ -24,12 +24,12 @@ export const transactions = pgTable("transactions", {
   type: transactionTypeEnum("type").notNull().default("expense"),
   description: text("description").notNull(),
   amount: real("amount").notNull(),
-  date: date("date").notNull(),
+  date: text("date").notNull(), // Using text for date to store ISO strings
   categoryId: integer("category_id").references(() => categories.id),
   status: transactionStatusEnum("status").notNull().default("pending"),
   recurrence: recurrenceEnum("recurrence").notNull().default("once"),
   isCleared: boolean("is_cleared").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: text("created_at").notNull(), // Using text for timestamp to store ISO strings
 });
 
 // Create schemas for validation and typing
@@ -37,6 +37,11 @@ export const insertCategorySchema = createInsertSchema(categories);
 export const insertTransactionSchema = createInsertSchema(transactions).omit({
   id: true,
   createdAt: true,
+}).extend({
+  // Allow date to be passed as Date object or ISO string
+  date: z.union([z.string(), z.date()]).transform(val => 
+    typeof val === 'string' ? val : val.toISOString()
+  )
 });
 
 // Create schemas for updates

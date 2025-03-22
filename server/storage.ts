@@ -88,10 +88,15 @@ export class MemStorage implements IStorage {
     const start = startOfMonth(new Date(year, month - 1));
     const end = endOfMonth(start);
     
-    return Array.from(this.transactions.values()).filter(transaction => {
+    // Get all transactions, convert string dates to Date objects for comparison
+    const result = Array.from(this.transactions.values()).filter(transaction => {
+      // Handle date as string (from storage) or Date object
       const transactionDate = new Date(transaction.date);
       return transactionDate >= start && transactionDate <= end;
     });
+    
+    console.log(`Found ${result.length} transactions for ${year}-${month}`);
+    return result;
   }
   
   async getTransaction(id: number): Promise<Transaction | undefined> {
@@ -100,19 +105,22 @@ export class MemStorage implements IStorage {
   
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
     const id = this.transactionCurrentId++;
-    // Ensure date is a valid Date object
-    const dateValue = typeof insertTransaction.date === 'string' 
-      ? new Date(insertTransaction.date)
-      : insertTransaction.date;
     
+    // The date is already transformed to ISO string by the schema
     const transaction: Transaction = { 
       id, 
       ...insertTransaction,
-      date: dateValue,
-      createdAt: new Date() 
+      // Make sure we have all required fields by setting defaults
+      type: insertTransaction.type || "expense",
+      status: insertTransaction.status || "pending",
+      recurrence: insertTransaction.recurrence || "once",
+      isCleared: insertTransaction.isCleared !== undefined ? insertTransaction.isCleared : false,
+      categoryId: insertTransaction.categoryId || null,
+      createdAt: new Date().toISOString() 
     };
     
     this.transactions.set(id, transaction);
+    console.log("Created transaction:", transaction);
     return transaction;
   }
   
@@ -123,15 +131,24 @@ export class MemStorage implements IStorage {
       return undefined;
     }
     
+    // Process date if it's being updated
+    let dateValue = existingTransaction.date;
+    if (updates.date) {
+      const newDate = typeof updates.date === 'string' 
+        ? new Date(updates.date)
+        : updates.date;
+      dateValue = newDate.toISOString();
+    }
+    
     // Update the transaction with new values
     const updatedTransaction: Transaction = {
       ...existingTransaction,
       ...updates,
-      // Ensure date remains a Date object if it's being updated
-      date: updates.date ? (typeof updates.date === 'string' ? new Date(updates.date) : updates.date) : existingTransaction.date
+      date: dateValue
     };
     
     this.transactions.set(id, updatedTransaction);
+    console.log("Updated transaction:", updatedTransaction);
     return updatedTransaction;
   }
   

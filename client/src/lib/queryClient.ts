@@ -35,7 +35,7 @@ export const getQueryFn: <T>(options: {
     
     // If the URL has placeholders for parameters (:year/:month)
     // and we have more elements in the queryKey, append them to the URL
-    if (queryKey.length > 1 && url.includes('/month')) {
+    if (queryKey.length > 1 && (url.includes('/month') || url === '/api/summary')) {
       const year = queryKey[1];
       const month = queryKey[2];
       url = `${url}/${year}/${month}`;

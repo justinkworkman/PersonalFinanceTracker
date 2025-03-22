@@ -1,6 +1,7 @@
 import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { IStorage } from "./storage";
 import { 
   insertTransactionSchema, 
   updateTransactionSchema, 
@@ -13,7 +14,7 @@ import { fromZodError } from "zod-validation-error";
 import { isValid, parseISO } from "date-fns";
 import { z } from "zod";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, storageInstance: IStorage = storage): Promise<Server> {
   const router = express.Router();
   
   // Health check route
@@ -24,7 +25,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all categories
   router.get("/categories", async (_req, res) => {
     try {
-      const categories = await storage.getCategories();
+      const categories = await storageInstance.getCategories();
       res.json(categories);
     } catch (err) {
       console.error("Error fetching categories:", err);
@@ -41,7 +42,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Type must be 'expense' or 'income'" });
       }
       
-      const categories = await storage.getCategoriesByType(type);
+      const categories = await storageInstance.getCategoriesByType(type);
       res.json(categories);
     } catch (err) {
       console.error("Error fetching categories by type:", err);
@@ -53,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.post("/categories", async (req, res) => {
     try {
       const categoryData = insertCategorySchema.parse(req.body);
-      const category = await storage.createCategory(categoryData);
+      const category = await storageInstance.createCategory(categoryData);
       res.status(201).json(category);
     } catch (err) {
       if (err instanceof ZodError) {
@@ -68,7 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all transactions
   router.get("/transactions", async (_req, res) => {
     try {
-      const transactions = await storage.getTransactions();
+      const transactions = await storageInstance.getTransactions();
       res.json(transactions);
     } catch (err) {
       console.error("Error fetching transactions:", err);
@@ -103,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`Fetching transactions for ${year}-${month}`);
-      const transactions = await storage.getTransactionsByMonth(year, month);
+      const transactions = await storageInstance.getTransactionsByMonth(year, month);
       res.json(transactions);
     } catch (err) {
       console.error("Error fetching transactions by month:", err);
@@ -120,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid transaction ID" });
       }
       
-      const transaction = await storage.getTransaction(id);
+      const transaction = await storageInstance.getTransaction(id);
       
       if (!transaction) {
         return res.status(404).json({ message: "Transaction not found" });
@@ -146,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const transaction = await storage.createTransaction(transactionData);
+      const transaction = await storageInstance.createTransaction(transactionData);
       res.status(201).json(transaction);
     } catch (err) {
       if (err instanceof ZodError) {
@@ -177,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const updatedTransaction = await storage.updateTransaction(id, updates);
+      const updatedTransaction = await storageInstance.updateTransaction(id, updates);
       
       if (!updatedTransaction) {
         return res.status(404).json({ message: "Transaction not found" });
@@ -203,7 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid transaction ID" });
       }
       
-      const deleted = await storage.deleteTransaction(id);
+      const deleted = await storageInstance.deleteTransaction(id);
       
       if (!deleted) {
         return res.status(404).json({ message: "Transaction not found" });
@@ -243,7 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`Fetching summary for ${year}-${month}`);
-      const summary = await storage.getMonthlySummary(year, month);
+      const summary = await storageInstance.getMonthlySummary(year, month);
       res.json(summary);
     } catch (err) {
       console.error("Error fetching monthly summary:", err);
@@ -273,7 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Verify transaction exists
-      const transaction = await storage.getTransaction(id);
+      const transaction = await storageInstance.getTransaction(id);
       if (!transaction) {
         return res.status(404).json({ message: "Transaction not found" });
       }
@@ -282,7 +283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { status, isCleared } = monthlyStatusSchema.parse(req.body);
       
       // Update monthly status
-      const monthlyStatus = await storage.setMonthlyStatus(id, year, month, status, isCleared);
+      const monthlyStatus = await storageInstance.setMonthlyStatus(id, year, month, status, isCleared);
       
       res.json(monthlyStatus);
     } catch (err) {
@@ -311,7 +312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get monthly status
-      const monthlyStatus = await storage.getMonthlyStatus(id, year, month);
+      const monthlyStatus = await storageInstance.getMonthlyStatus(id, year, month);
       
       if (!monthlyStatus) {
         return res.status(404).json({ message: "Monthly status not found" });

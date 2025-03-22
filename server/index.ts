@@ -1,6 +1,12 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { PgStorage } from "./pgStorage";
+import { storage } from "./storage";
+import { initDb } from "./db";
+
+// Create storage instance
+let activeStorage = storage;
 
 const app = express();
 app.use(express.json());
@@ -37,7 +43,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Log which storage we're using
+  log(`Using ${process.env.DATABASE_URL ? 'PostgreSQL' : 'in-memory'} storage`);
+  
+  const server = await registerRoutes(app, activeStorage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

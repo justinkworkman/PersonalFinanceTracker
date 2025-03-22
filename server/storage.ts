@@ -377,10 +377,23 @@ export class MemStorage implements IStorage {
     const totalTransactions = transactions.length;
     
     // Count transactions marked as paid or cleared
-    // For future months, only count transactions with explicit monthly status
+    // If this is a future month, only count as paid if they have an explicit monthly status override
     const paidTransactions = transactions.filter(t => {
-      // Only count transactions that are explicitly marked as paid or cleared
-      return (t.status === "paid" || t.status === "cleared");
+      // Check if this is a future month
+      const isFutureMonth = (year > currentYear || (year === currentYear && month > currentMonth));
+      
+      if (isFutureMonth) {
+        // In future months, only consider a transaction paid if it has an explicit monthly status override
+        if (t.monthlyStatus) {
+          return (t.monthlyStatus.status === "paid" || t.monthlyStatus.status === "cleared");
+        } else {
+          // Without explicit monthly status in future months, always consider it pending
+          return false;
+        }
+      } else {
+        // For current or past months, use the transaction status
+        return (t.status === "paid" || t.status === "cleared");
+      }
     }).length;
     
     const pendingTransactions = totalTransactions - paidTransactions;

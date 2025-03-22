@@ -117,8 +117,15 @@ export default function TransactionModal({
   // Update form with transaction data when editing, or clear for new entries
   useEffect(() => {
     if (transaction) {
-      const isRelativeDate = transaction.relativeDateType && transaction.relativeDateType !== "fixed";
+      // For recurring transactions, determine if we should show relative date options
+      const isRelativeDate = transaction.relativeDateType !== "fixed";
       setShowRelativeDateOptions(isRelativeDate);
+      
+      // For recurring transactions with relative dates, make sure we have proper day of month for custom type
+      let dayOfMonth = transaction.dayOfMonth;
+      if (isRelativeDate && transaction.relativeDateType === "custom" && !dayOfMonth) {
+        dayOfMonth = 15; // Default to 15th if no day specified but using custom relative date
+      }
       
       form.reset({
         type: transaction.type as "expense" | "income",
@@ -130,7 +137,7 @@ export default function TransactionModal({
         recurrence: transaction.recurrence as "once" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
         isCleared: transaction.isCleared,
         relativeDateType: (transaction.relativeDateType || "fixed") as "fixed" | "first_day" | "last_day" | "custom",
-        dayOfMonth: transaction.dayOfMonth || undefined
+        dayOfMonth: dayOfMonth
       });
     } else {
       setShowRelativeDateOptions(false);

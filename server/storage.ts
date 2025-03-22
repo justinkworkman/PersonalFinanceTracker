@@ -167,19 +167,19 @@ export class MemStorage implements IStorage {
     switch (transaction.recurrence) {
       case "weekly":
         // Weekly recurrence approximates to 4 weeks per month
-        return monthDiff > 0;
+        return true; // Show in all future months
       case "biweekly":
         // Biweekly recurrence approximates to 2 occurrences per month
-        return monthDiff > 0;
+        return true; // Show in all future months
       case "monthly":
         // Monthly recurs every month
-        return monthDiff > 0;
+        return true; // Every month after the original
       case "quarterly":
         // Every 3 months
-        return monthDiff > 0 && monthDiff % 3 === 0;
+        return monthDiff % 3 === 0; // Every 3rd month
       case "yearly":
         // Every 12 months
-        return monthDiff > 0 && monthDiff % 12 === 0;
+        return monthDiff % 12 === 0; // Every 12th month
       default:
         return false;
     }
@@ -208,8 +208,11 @@ export class MemStorage implements IStorage {
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
     const id = this.transactionCurrentId++;
     
-    // Save original date for recurring transactions
-    const originalDate = insertTransaction.date;
+    // For recurring transactions, ensure we have an originalDate
+    let originalDate = insertTransaction.originalDate;
+    if (insertTransaction.recurrence !== "once" && !originalDate) {
+      originalDate = insertTransaction.date;
+    }
     
     // Create the transaction with default values for required fields
     const transaction: Transaction = { 
@@ -248,11 +251,25 @@ export class MemStorage implements IStorage {
       dateValue = newDate.toISOString();
     }
     
+    // Ensure we have the correct originalDate for recurring transactions
+    let originalDateValue = updates.originalDate || existingTransaction.originalDate;
+    
+    // If recurrence is being updated to be recurring, and there's no originalDate, use the transaction date
+    if (updates.recurrence && updates.recurrence !== "once" && !originalDateValue) {
+      originalDateValue = dateValue;
+    }
+    
+    // If recurrence is being updated to be non-recurring, clear originalDate
+    if (updates.recurrence === "once") {
+      originalDateValue = undefined;
+    }
+    
     // Update the transaction with new values
     const updatedTransaction: Transaction = {
       ...existingTransaction,
       ...updates,
-      date: dateValue
+      date: dateValue,
+      originalDate: originalDateValue
     };
     
     this.transactions.set(id, updatedTransaction);

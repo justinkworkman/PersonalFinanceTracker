@@ -161,14 +161,22 @@ export default function TransactionModal({
       // Process data before submission
       let submissionData = { ...data };
       
-      // Handle relative date fields
-      if (showRelativeDateOptions) {
-        // When using relative dates, we'll use the selected date as the original date reference
-        submissionData.originalDate = data.date.toISOString();
+      // Set original date if this is a recurring transaction (for future instances)
+      if (data.recurrence !== "once") {
+        if (showRelativeDateOptions) {
+          // When using relative dates, we'll use the selected date as the original date reference
+          submissionData.originalDate = data.date.toISOString();
+        } else {
+          // For fixed dates but still recurring, use the selected date as original
+          submissionData.originalDate = data.date.toISOString();
+          submissionData.relativeDateType = "fixed";
+          submissionData.dayOfMonth = undefined;
+        }
       } else {
-        // For fixed dates, clear relative date fields
+        // For one-time transactions, no need for relative dates
         submissionData.relativeDateType = "fixed";
         submissionData.dayOfMonth = undefined;
+        submissionData.originalDate = undefined;
       }
       
       if (transaction) {
@@ -178,6 +186,9 @@ export default function TransactionModal({
         // Create new transaction
         await apiRequest("POST", "/api/transactions", submissionData);
       }
+      
+      // Reset form after successful submission
+      form.reset(defaultValues);
       onTransactionCreated();
     } catch (error) {
       console.error("Error saving transaction:", error);

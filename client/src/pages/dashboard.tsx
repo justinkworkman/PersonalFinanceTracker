@@ -10,9 +10,10 @@ import TransactionsList from "@/components/TransactionsList";
 import TransactionModal from "@/components/TransactionModal";
 import { MonthlySummary, Transaction } from "@shared/schema";
 import { useCalendar } from "@/hooks/useCalendar";
+import { useDateContext } from "@/context/DateContext";
 
 export default function Dashboard() {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { selectedDate } = useDateContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const queryClient = useQueryClient();
@@ -20,23 +21,6 @@ export default function Dashboard() {
   
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
-  
-  // Navigation functions for month
-  const prevMonth = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() - 1);
-    setSelectedDate(newDate);
-  };
-  
-  const nextMonth = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() + 1);
-    setSelectedDate(newDate);
-  };
-  
-  const goToMonth = (date: Date) => {
-    setSelectedDate(date);
-  };
   
   // Query for monthly transactions
   const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<Transaction[]>({
@@ -103,6 +87,25 @@ export default function Dashboard() {
     );
   }
   
+  const { setSelectedDate } = useDateContext();
+  
+  // Navigation functions for month
+  const prevMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() - 1);
+    setSelectedDate(newDate);
+  };
+  
+  const nextMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() + 1);
+    setSelectedDate(newDate);
+  };
+  
+  const goToMonth = (date: Date) => {
+    setSelectedDate(date);
+  };
+
   return (
     <>
       {/* Dashboard Summary Cards */}

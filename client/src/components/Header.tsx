@@ -7,20 +7,21 @@ import TransactionModal from "@/components/TransactionModal";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { addMonths, subMonths } from "date-fns";
+import { useDateContext } from "@/context/DateContext";
 
 export default function Header() {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { selectedDate, setSelectedDate } = useDateContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
   // Create month navigation functions
   const prevMonth = () => {
-    setSelectedDate(prev => subMonths(prev, 1));
+    setSelectedDate(subMonths(selectedDate, 1));
   };
   
   const nextMonth = () => {
-    setSelectedDate(prev => addMonths(prev, 1));
+    setSelectedDate(addMonths(selectedDate, 1));
   };
   
   const goToMonth = (date: Date) => {

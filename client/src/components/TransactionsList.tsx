@@ -92,7 +92,8 @@ export default function TransactionsList({
   
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      {/* Desktop header */}
+      <CardHeader className={`${isMobile ? 'hidden' : 'flex'} flex-row items-center justify-between space-y-0 pb-2`}>
         <CardTitle className="text-lg font-semibold">Transactions</CardTitle>
         <div className="flex space-x-2">
           <Button 
@@ -118,6 +119,37 @@ export default function TransactionsList({
           </Button>
         </div>
       </CardHeader>
+      
+      {/* Mobile header */}
+      <CardHeader className={`${isMobile ? 'flex' : 'hidden'} flex-col space-y-2 pb-2`}>
+        <CardTitle className="text-lg font-semibold">Transactions</CardTitle>
+        <div className="flex w-full space-x-1">
+          <Button 
+            variant={filter === "all" ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setFilter("all")}
+            className="flex-1"
+          >
+            All
+          </Button>
+          <Button 
+            variant={filter === "expense" ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setFilter("expense")}
+            className="flex-1"
+          >
+            Exp
+          </Button>
+          <Button 
+            variant={filter === "income" ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setFilter("income")}
+            className="flex-1"
+          >
+            Inc
+          </Button>
+        </div>
+      </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-slate-200 max-h-[600px] overflow-y-auto">
           {sortedTransactions.length === 0 ? (
@@ -129,12 +161,12 @@ export default function TransactionsList({
             sortedTransactions.map((transaction) => (
               <div 
                 key={transaction.id}
-                className="p-3 flex justify-between items-center cursor-pointer hover:bg-slate-50"
+                className={`${isMobile ? 'p-2' : 'p-3'} flex justify-between items-center cursor-pointer hover:bg-slate-50`}
                 onClick={() => onTransactionClick(transaction)}
               >
                 <div className="flex items-center">
                   <div 
-                    className={`mr-3 rounded-full p-2 
+                    className={`${isMobile ? 'mr-2 p-1.5' : 'mr-3 p-2'} rounded-full 
                       ${(transaction.monthlyStatus?.status || transaction.status) === 'pending' 
                         ? 'bg-red-100' 
                         : transaction.type === 'income' 
@@ -151,15 +183,17 @@ export default function TransactionsList({
                       <CheckCircle className="h-4 w-4 text-success" />
                     )}
                   </div>
-                  <div>
-                    <div className="font-medium text-slate-800">{transaction.description}</div>
+                  <div className={isMobile ? 'mr-1' : ''}>
+                    <div className={`${isMobile ? 'text-sm' : ''} font-medium text-slate-800 truncate ${isMobile ? 'max-w-[140px]' : ''}`}>
+                      {transaction.description}
+                    </div>
                     <div className="text-xs text-slate-500">
-                      {format(new Date(transaction.date), "MMM d, yyyy")}
+                      {format(new Date(transaction.date), isMobile ? "MM/dd" : "MMM d, yyyy")}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className={`font-medium ${transaction.type === 'income' ? 'text-success' : 'text-danger'}`}>
+                  <div className={`${isMobile ? 'text-sm' : ''} font-medium ${transaction.type === 'income' ? 'text-success' : 'text-danger'}`}>
                     {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                   </div>
                   <Badge
@@ -172,8 +206,10 @@ export default function TransactionsList({
                         : 'bg-green-100 text-green-800'
                     }`}
                   >
-                    {(transaction.monthlyStatus?.status || transaction.status).charAt(0).toUpperCase() + 
-                     (transaction.monthlyStatus?.status || transaction.status).slice(1)}
+                    {isMobile ? 
+                      ((transaction.monthlyStatus?.status || transaction.status).charAt(0).toUpperCase()) :
+                      ((transaction.monthlyStatus?.status || transaction.status).charAt(0).toUpperCase() + 
+                       (transaction.monthlyStatus?.status || transaction.status).slice(1))}
                   </Badge>
                 </div>
               </div>

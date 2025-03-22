@@ -110,7 +110,7 @@ export default function Dashboard() {
   return (
     <>
       {/* Dashboard Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className={`grid grid-cols-1 ${isMobile ? 'gap-4 mb-4' : 'md:grid-cols-3 gap-6 mb-8'}`}>
         <SummaryCard 
           income={summary?.income || 0} 
           expenses={summary?.expenses || 0} 

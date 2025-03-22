@@ -71,8 +71,8 @@ export default function Header() {
         
         {/* Mobile layout */}
         <div className="md:hidden flex flex-col py-4 space-y-4">
-          <div className="flex justify-between items-center">
-            <Link href="/" className="text-2xl font-bold text-primary">
+          <div className="flex justify-between items-center w-full">
+            <Link href="/" className="text-xl font-bold text-primary">
               BudgetTracker
             </Link>
             

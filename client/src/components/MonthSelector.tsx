@@ -44,12 +44,13 @@ export default function MonthSelector({
   };
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center gap-1 md:gap-2">
       <Button 
         variant="ghost" 
         size="icon" 
         onClick={onPrevMonth}
         aria-label="Previous Month"
+        className="flex-shrink-0"
       >
         <ChevronLeft className="h-5 w-5" />
       </Button>
@@ -58,8 +59,8 @@ export default function MonthSelector({
         value={`${currentDate.getFullYear()}-${currentDate.getMonth() + 1}`}
         onValueChange={handleSelectChange}
       >
-        <SelectTrigger className="w-36 font-medium">
-          <SelectValue>{format(currentDate, "MMMM yyyy")}</SelectValue>
+        <SelectTrigger className="w-[100px] md:w-36 font-medium">
+          <SelectValue>{format(currentDate, "MMM yyyy")}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {monthOptions.map((option) => (
@@ -75,6 +76,7 @@ export default function MonthSelector({
         size="icon" 
         onClick={onNextMonth}
         aria-label="Next Month"
+        className="flex-shrink-0"
       >
         <ChevronRight className="h-5 w-5" />
       </Button>

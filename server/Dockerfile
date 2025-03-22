@@ -1,7 +1,7 @@
 FROM node:20-slim
 
-# Install PostgreSQL client for database connection
-RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+# Install PostgreSQL client and curl for health checks
+RUN apt-get update && apt-get install -y postgresql-client curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

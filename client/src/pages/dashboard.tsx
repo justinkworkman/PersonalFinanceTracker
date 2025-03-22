@@ -13,11 +13,29 @@ import { useCalendar } from "@/hooks/useCalendar";
 import { useDateContext } from "@/context/DateContext";
 
 export default function Dashboard() {
-  const { selectedDate } = useDateContext();
+  // Use date context first (all hooks must be called in the same order)
+  const { selectedDate, setSelectedDate } = useDateContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  // Navigation functions for month
+  const prevMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() - 1);
+    setSelectedDate(newDate);
+  };
+  
+  const nextMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() + 1);
+    setSelectedDate(newDate);
+  };
+  
+  const goToMonth = (date: Date) => {
+    setSelectedDate(date);
+  };
   
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
@@ -86,25 +104,6 @@ export default function Dashboard() {
       </div>
     );
   }
-  
-  const { setSelectedDate } = useDateContext();
-  
-  // Navigation functions for month
-  const prevMonth = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() - 1);
-    setSelectedDate(newDate);
-  };
-  
-  const nextMonth = () => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() + 1);
-    setSelectedDate(newDate);
-  };
-  
-  const goToMonth = (date: Date) => {
-    setSelectedDate(date);
-  };
 
   return (
     <>

@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -6,59 +5,20 @@ import {
   endOfWeek, 
   eachDayOfInterval, 
   isSameMonth, 
-  addMonths, 
-  subMonths,
   format 
 } from "date-fns";
 import { CalendarItem } from "@shared/schema";
-import { useQuery } from "@tanstack/react-query";
 import { Transaction } from "@shared/schema";
 
-export function useCalendar(selectedDate: Date, setSelectedDate?: (date: Date) => void) {
-  // Track current date for the calendar
-  const [currentDate, setCurrentDate] = useState(selectedDate);
+export function useCalendar(date: Date, transactions: Transaction[] = []) {
+  // Make sure transactions is always an array
+  const transactionsArray = Array.isArray(transactions) ? transactions : [];
   
-  // Update currentDate when selectedDate changes
-  useEffect(() => {
-    setCurrentDate(selectedDate);
-  }, [selectedDate]);
-  
-  // Extract year and month from current date
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth() + 1;
-  
-  // Fetch transactions for this month
-  const { data: transactions = [] } = useQuery<Transaction[]>({
-    queryKey: ['/api/transactions/month', year, month],
-  });
-  
-  // Generate calendar days
-  const calendarWeeks = generateCalendarMonth(currentDate, transactions);
-  
-  // Navigation functions
-  const prevMonth = () => {
-    const newDate = subMonths(currentDate, 1);
-    setCurrentDate(newDate);
-    if (setSelectedDate) setSelectedDate(newDate);
-  };
-  
-  const nextMonth = () => {
-    const newDate = addMonths(currentDate, 1);
-    setCurrentDate(newDate);
-    if (setSelectedDate) setSelectedDate(newDate);
-  };
-  
-  const goToMonth = (date: Date) => {
-    setCurrentDate(date);
-    if (setSelectedDate) setSelectedDate(date);
-  };
+  // Generate calendar based on the provided date and transactions
+  const calendarWeeks = generateCalendarMonth(date, transactionsArray);
   
   return {
-    currentDate,
-    calendarWeeks,
-    prevMonth,
-    nextMonth,
-    goToMonth
+    calendarWeeks
   };
 }
 

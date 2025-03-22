@@ -21,13 +21,31 @@ export default function Dashboard() {
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
   
-  const { calendarWeeks, prevMonth, nextMonth, goToMonth } = useCalendar(selectedDate);
+  // Navigation functions for month
+  const prevMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() - 1);
+    setSelectedDate(newDate);
+  };
+  
+  const nextMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(newDate.getMonth() + 1);
+    setSelectedDate(newDate);
+  };
+  
+  const goToMonth = (date: Date) => {
+    setSelectedDate(date);
+  };
   
   // Query for monthly transactions
-  const { data: transactions, isLoading: isLoadingTransactions } = useQuery<Transaction[]>({
+  const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<Transaction[]>({
     queryKey: ['/api/transactions/month', year, month],
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+  
+  // Generate calendar weeks for current month
+  const { calendarWeeks } = useCalendar(selectedDate, transactions);
   
   // Query for monthly summary
   const { data: summary, isLoading: isLoadingSummary } = useQuery<MonthlySummary>({

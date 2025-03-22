@@ -13,8 +13,8 @@ export default function CategoryCard({ categories }: CategoryCardProps) {
   const isMobile = useIsMobile();
   
   return (
-    <Card className={isMobile ? 'shadow-sm' : ''}>
-      <CardContent className={`${isMobile ? 'pt-4 px-4 pb-3' : 'pt-6'}`}>
+    <Card className={isMobile ? 'shadow-sm w-full' : ''}>
+      <CardContent className={`${isMobile ? 'pt-4 px-5 pb-3' : 'pt-6'}`}>
         <h2 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-slate-700 ${isMobile ? 'mb-2' : 'mb-4'}`}>
           Top Categories
         </h2>

@@ -91,7 +91,7 @@ export default function TransactionsList({
   };
   
   return (
-    <Card>
+    <Card className={isMobile ? "w-full" : ""}>
       {/* Desktop header */}
       <CardHeader className={`${isMobile ? 'hidden' : 'flex'} flex-row items-center justify-between space-y-0 pb-2`}>
         <CardTitle className="text-lg font-semibold">Transactions</CardTitle>
@@ -121,8 +121,8 @@ export default function TransactionsList({
       </CardHeader>
       
       {/* Mobile header */}
-      <CardHeader className={`${isMobile ? 'flex' : 'hidden'} flex-col space-y-2 pb-2`}>
-        <CardTitle className="text-lg font-semibold">Transactions</CardTitle>
+      <CardHeader className={`${isMobile ? 'flex' : 'hidden'} flex-col space-y-2 pb-2 pt-4 px-5`}>
+        <CardTitle className="text-base font-semibold">Transactions</CardTitle>
         <div className="flex w-full space-x-1">
           <Button 
             variant={filter === "all" ? "default" : "outline"} 

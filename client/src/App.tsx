@@ -22,8 +22,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <DateProvider>
         <div className="min-h-screen flex flex-col bg-slate-50">
-          <Header />
-          <main className="flex-1 py-6 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl">
+          {/* Fixed header at the top */}
+          <div className="sticky top-0 z-10">
+            <Header />
+          </div>
+          {/* Main content with padding to account for fixed header */}
+          <main className="flex-1 py-6 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl w-full">
             <Router />
           </main>
           <Footer />

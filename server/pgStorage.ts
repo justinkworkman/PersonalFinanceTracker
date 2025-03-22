@@ -1,5 +1,6 @@
 import { eq, and, sql, asc, desc } from 'drizzle-orm';
 import { db } from './db';
+import postgres from 'postgres';
 import {
   categories,
   transactions,
@@ -17,6 +18,14 @@ import {
 } from '@shared/schema';
 import { IStorage } from './storage';
 import { log } from './vite';
+
+// Create a database connection
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not defined');
+}
+// Initialize postgres client for raw queries
+const client = postgres(connectionString);
 
 export class PgStorage implements IStorage {
   async getCategories(): Promise<Category[]> {
@@ -283,6 +292,11 @@ export class PgStorage implements IStorage {
         return undefined;
       }
       
+      // Only proceed if there's something to update
+      if (Object.keys(updates).length === 0) {
+        return transaction;
+      }
+      
       // Convert camelCase property names to snake_case for the database
       const formattedUpdates: any = {};
       
@@ -298,19 +312,37 @@ export class PgStorage implements IStorage {
       if (updates.originalDate !== undefined) formattedUpdates.original_date = updates.originalDate;
       if (updates.dayOfMonth !== undefined) formattedUpdates.day_of_month = updates.dayOfMonth;
       
-      // Only proceed if there's something to update
-      if (Object.keys(formattedUpdates).length === 0) {
-        return transaction;
-      }
-      
       log(`Updating transaction ${id}: ${JSON.stringify(formattedUpdates)}`, 'pgStorage');
       
-      const result = await db.update(transactions)
-        .set(formattedUpdates)
-        .where(eq(transactions.id, id))
-        .returning();
+      // Build a simpler update query using SQL template tags
+      const sqlSetParts: string[] = [];
+      const sqlValues: any[] = [id]; // Start with the ID
+      let paramIndex = 2; // Start at 2 because $1 will be the ID
       
-      return result[0];
+      Object.entries(formattedUpdates).forEach(([key, value]) => {
+        sqlSetParts.push(`${key} = $${paramIndex}`);
+        sqlValues.push(value);
+        paramIndex++;
+      });
+      
+      // Use a template string for the SQL
+      const updateQuery = `
+        UPDATE transactions
+        SET ${sqlSetParts.join(', ')}
+        WHERE id = $1
+        RETURNING *
+      `;
+      
+      // Use the db object to run a simple query
+      const result = await sql.raw(updateQuery, ...sqlValues)
+        .execute(db);
+      
+      if (!result || result.length === 0) {
+        log(`No transaction found with id ${id}`, 'pgStorage');
+        return undefined;
+      }
+      
+      return result[0] as Transaction;
     } catch (error) {
       console.error(`Error updating transaction ${id}:`, error);
       throw error;

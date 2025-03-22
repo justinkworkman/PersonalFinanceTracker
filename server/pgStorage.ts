@@ -1,6 +1,9 @@
 import { eq, and, sql, asc, desc } from 'drizzle-orm';
 import { db } from './db';
 import {
+  categories,
+  transactions,
+  monthlyTransactionStatus,
   Category,
   InsertCategory,
   Transaction,
@@ -19,7 +22,7 @@ export class PgStorage implements IStorage {
   async getCategories(): Promise<Category[]> {
     try {
       return await db.query.categories.findMany({
-        orderBy: [asc(schema.categories.name)]
+        orderBy: [asc(categories.name)]
       });
     } catch (error) {
       console.error('Error getting categories:', error);
@@ -30,8 +33,8 @@ export class PgStorage implements IStorage {
   async getCategoriesByType(type: "expense" | "income"): Promise<Category[]> {
     try {
       return await db.query.categories.findMany({
-        where: eq(schema.categories.type, type),
-        orderBy: [asc(schema.categories.name)]
+        where: eq(categories.type, type),
+        orderBy: [asc(categories.name)]
       });
     } catch (error) {
       console.error(`Error getting categories by type ${type}:`, error);
@@ -505,5 +508,3 @@ export class PgStorage implements IStorage {
     }
   }
 }
-
-import * as schema from '@shared/schema';

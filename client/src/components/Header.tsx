@@ -4,9 +4,9 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MonthSelector from "@/components/MonthSelector";
 import TransactionModal from "@/components/TransactionModal";
-import { useCalendar } from "@/hooks/useCalendar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { addMonths, subMonths } from "date-fns";
 
 export default function Header() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -14,7 +14,18 @@ export default function Header() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  const { prevMonth, nextMonth, goToMonth } = useCalendar(selectedDate, setSelectedDate);
+  // Create month navigation functions
+  const prevMonth = () => {
+    setSelectedDate(prev => subMonths(prev, 1));
+  };
+  
+  const nextMonth = () => {
+    setSelectedDate(prev => addMonths(prev, 1));
+  };
+  
+  const goToMonth = (date: Date) => {
+    setSelectedDate(date);
+  };
   
   const handleAddTransaction = () => {
     setIsModalOpen(true);

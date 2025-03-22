@@ -26,9 +26,21 @@ export default function MonthSelector({
   });
 
   const handleSelectChange = (value: string) => {
-    const [year, month] = value.split('-').map(Number);
-    const newDate = new Date(year, month - 1);
-    goToMonth(newDate);
+    try {
+      const [year, month] = value.split('-').map(Number);
+      const newDate = new Date(year, month - 1);
+      console.log('MonthSelector - Calling goToMonth with:', newDate);
+      console.log('goToMonth is:', typeof goToMonth);
+      
+      if (typeof goToMonth !== 'function') {
+        console.error('goToMonth is not a function!', goToMonth);
+        return;
+      }
+      
+      goToMonth(newDate);
+    } catch (error) {
+      console.error('Error in handleSelectChange:', error);
+    }
   };
 
   return (

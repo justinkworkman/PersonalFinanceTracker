@@ -10,6 +10,7 @@ export const transactionStatusEnum = pgEnum("transaction_status", ["pending", "p
 
 // Enum for recurrence patterns
 export const recurrenceEnum = pgEnum("recurrence", ["once", "weekly", "biweekly", "monthly", "quarterly", "yearly"]);
+export const relativeDateTypeEnum = pgEnum("relative_date_type", ["fixed", "first_day", "last_day", "custom"]);
 
 // Categories table for expense/income categories
 export const categories = pgTable("categories", {
@@ -29,6 +30,12 @@ export const transactions = pgTable("transactions", {
   status: transactionStatusEnum("status").notNull().default("pending"),
   recurrence: recurrenceEnum("recurrence").notNull().default("once"),
   isCleared: boolean("is_cleared").notNull().default(false),
+  
+  // Fields for relative date handling
+  relativeDateType: relativeDateTypeEnum("relative_date_type").notNull().default("fixed"),
+  dayOfMonth: integer("day_of_month"), // For custom relative dates (e.g., 15th of each month)
+  originalDate: text("original_date"), // Store the original date for recurring items
+  
   createdAt: text("created_at").notNull(), // Using text for timestamp to store ISO strings
 });
 
@@ -37,10 +44,18 @@ export const insertCategorySchema = createInsertSchema(categories);
 export const insertTransactionSchema = createInsertSchema(transactions).omit({
   id: true,
   createdAt: true,
+  originalDate: true, // We'll handle this automatically
 }).extend({
   // Allow date to be passed as Date object or ISO string
   date: z.union([z.string(), z.date()]).transform(val => 
     typeof val === 'string' ? val : val.toISOString()
+  ),
+  // Add default values for relative date fields
+  relativeDateType: z.enum(["fixed", "first_day", "last_day", "custom"]).default("fixed"),
+  dayOfMonth: z.number().optional(),
+  // Optional transform function for easier client handling
+  originalDate: z.union([z.string(), z.date(), z.undefined()]).optional().transform(val => 
+    val ? (typeof val === 'string' ? val : val.toISOString()) : undefined
   )
 });
 
@@ -81,3 +96,53 @@ export type CalendarItem = {
   date: Date;
   transactions: Transaction[];
 };
+
+// Utility functions for working with relative dates
+export function getRelativeDate(
+  year: number, 
+  month: number, 
+  relativeType: "fixed" | "first_day" | "last_day" | "custom",
+  dayOfMonth?: number,
+  originalDate?: string
+): Date {
+  // Create a date object for the specified month
+  const date = new Date(year, month - 1);
+  
+  switch (relativeType) {
+    case "first_day":
+      // First day of month - already set correctly
+      return date;
+    
+    case "last_day":
+      // Last day of month - set to next month and subtract a day
+      const nextMonth = new Date(year, month);
+      nextMonth.setDate(0); // This sets it to the last day of the previous month
+      return nextMonth;
+    
+    case "custom":
+      if (dayOfMonth && dayOfMonth > 0 && dayOfMonth <= 31) {
+        // Try to set the specified day, but handle months with fewer days
+        const customDate = new Date(year, month - 1);
+        customDate.setDate(Math.min(dayOfMonth, getDaysInMonth(year, month)));
+        return customDate;
+      }
+      // Falls through to fixed date if dayOfMonth is invalid
+
+    case "fixed":
+    default:
+      // For fixed dates, we use the original date but update year/month
+      if (originalDate) {
+        const original = new Date(originalDate);
+        // Create new date with original day but in the specified month/year
+        const fixedDay = Math.min(original.getDate(), getDaysInMonth(year, month));
+        return new Date(year, month - 1, fixedDay);
+      }
+      // Fallback to first day of month if no original date
+      return date;
+  }
+}
+
+// Helper function to get days in month
+export function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}

@@ -5,7 +5,9 @@ import {
   InsertTransaction, 
   UpdateTransaction,
   MonthlySummary,
-  CategorySummary
+  CategorySummary,
+  getRelativeDate, 
+  getDaysInMonth
 } from "@shared/schema";
 import { startOfMonth, endOfMonth, isSameMonth, format, parseISO } from "date-fns";
 
@@ -85,18 +87,118 @@ export class MemStorage implements IStorage {
   }
 
   async getTransactionsByMonth(year: number, month: number): Promise<Transaction[]> {
+    console.log(`Fetching transactions for ${year}-${month}`);
+    // Calculate start and end of month
     const start = startOfMonth(new Date(year, month - 1));
     const end = endOfMonth(start);
     
-    // Get all transactions, convert string dates to Date objects for comparison
-    const result = Array.from(this.transactions.values()).filter(transaction => {
-      // Handle date as string (from storage) or Date object
+    // Start with the regular transactions in this month
+    const regularTransactions = Array.from(this.transactions.values()).filter(transaction => {
       const transactionDate = new Date(transaction.date);
       return transactionDate >= start && transactionDate <= end;
     });
     
-    console.log(`Found ${result.length} transactions for ${year}-${month}`);
-    return result;
+    // Handle recurring transactions - get all transactions with a recurrence that's not "once"
+    const recurringTransactions = Array.from(this.transactions.values()).filter(transaction => {
+      if (transaction.recurrence === "once") return false;
+      
+      // Get the original transaction date
+      const originalDate = new Date(transaction.originalDate || transaction.date);
+      const transactionDate = new Date(transaction.date);
+      
+      // Only consider transactions that started before or in the current month
+      if (transactionDate > end) return false;
+      
+      // Generate a recurring instance for this month based on recurrence pattern
+      return this.shouldRecurInMonth(transaction, year, month, originalDate);
+    });
+    
+    // For each recurring transaction, create a virtual instance for this month
+    const virtualRecurringTransactions = recurringTransactions.map(transaction => {
+      // Calculate the date for this month based on the relative date type
+      const newDate = this.getRecurringDateForMonth(transaction, year, month);
+      
+      // Create a virtual transaction with the updated date
+      // This is not stored in the database, just generated for display
+      // Create a virtual transaction with the updated date
+      const virtualTransaction: Transaction & { isVirtualRecurrence?: boolean } = {
+        ...transaction,
+        date: newDate.toISOString(),
+        // Reset status for recurring transactions in future months
+        status: "pending" as const,
+        isCleared: false,
+        // Mark as virtual instance to distinguish from actual transactions
+        isVirtualRecurrence: true
+      };
+      
+      return virtualTransaction;
+    });
+    
+    // Combine regular and virtual recurring transactions
+    const allTransactions = [...regularTransactions, ...virtualRecurringTransactions];
+    
+    console.log(`Found ${allTransactions.length} transactions for ${year}-${month} (${regularTransactions.length} regular, ${virtualRecurringTransactions.length} recurring)`);
+    return allTransactions;
+  }
+  
+  // Helper method to determine if a transaction should recur in the given month
+  private shouldRecurInMonth(
+    transaction: Transaction, 
+    year: number, 
+    month: number, 
+    originalDate: Date
+  ): boolean {
+    const origYear = originalDate.getFullYear();
+    const origMonth = originalDate.getMonth() + 1; // 1-based month
+    
+    // If the target month is before the original date, don't recur
+    if (year < origYear || (year === origYear && month < origMonth)) {
+      return false;
+    }
+    
+    // If it's the same month as the original, don't create a duplicate
+    if (year === origYear && month === origMonth) {
+      return false;
+    }
+    
+    // Calculate months between original and target
+    const monthDiff = (year - origYear) * 12 + (month - origMonth);
+    
+    switch (transaction.recurrence) {
+      case "weekly":
+        // Weekly recurrence approximates to 4 weeks per month
+        return monthDiff > 0;
+      case "biweekly":
+        // Biweekly recurrence approximates to 2 occurrences per month
+        return monthDiff > 0;
+      case "monthly":
+        // Monthly recurs every month
+        return monthDiff > 0;
+      case "quarterly":
+        // Every 3 months
+        return monthDiff > 0 && monthDiff % 3 === 0;
+      case "yearly":
+        // Every 12 months
+        return monthDiff > 0 && monthDiff % 12 === 0;
+      default:
+        return false;
+    }
+  }
+  
+  // Helper method to calculate the recurring date for a transaction in a given month
+  private getRecurringDateForMonth(
+    transaction: Transaction,
+    year: number,
+    month: number
+  ): Date {
+    // Use the shared utility function to calculate the date
+    return getRelativeDate(
+      year,
+      month,
+      transaction.relativeDateType,
+      transaction.dayOfMonth || undefined,
+      transaction.originalDate || transaction.date
+    );
   }
   
   async getTransaction(id: number): Promise<Transaction | undefined> {
@@ -106,7 +208,10 @@ export class MemStorage implements IStorage {
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
     const id = this.transactionCurrentId++;
     
-    // The date is already transformed to ISO string by the schema
+    // Save original date for recurring transactions
+    const originalDate = insertTransaction.date;
+    
+    // Create the transaction with default values for required fields
     const transaction: Transaction = { 
       id, 
       ...insertTransaction,
@@ -116,6 +221,9 @@ export class MemStorage implements IStorage {
       recurrence: insertTransaction.recurrence || "once",
       isCleared: insertTransaction.isCleared !== undefined ? insertTransaction.isCleared : false,
       categoryId: insertTransaction.categoryId || null,
+      relativeDateType: insertTransaction.relativeDateType || "fixed",
+      dayOfMonth: insertTransaction.dayOfMonth || null,
+      originalDate: originalDate,
       createdAt: new Date().toISOString() 
     };
     

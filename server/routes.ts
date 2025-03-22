@@ -5,11 +5,13 @@ import {
   insertTransactionSchema, 
   updateTransactionSchema, 
   insertCategorySchema,
-  Transaction
+  Transaction,
+  MonthlyTransactionStatus
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { isValid, parseISO } from "date-fns";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
@@ -246,6 +248,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("Error fetching monthly summary:", err);
       res.status(500).json({ message: "Failed to fetch monthly summary" });
+    }
+  });
+  
+  // Schema for monthly status update
+  const monthlyStatusSchema = z.object({
+    status: z.enum(["pending", "paid", "cleared"]),
+    isCleared: z.boolean().default(false)
+  });
+  
+  // Update monthly status for a transaction
+  router.put("/transactions/:id/monthly-status/:year/:month", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid transaction ID" });
+      }
+      
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ message: "Invalid year or month" });
+      }
+      
+      // Verify transaction exists
+      const transaction = await storage.getTransaction(id);
+      if (!transaction) {
+        return res.status(404).json({ message: "Transaction not found" });
+      }
+      
+      // Parse the request body
+      const { status, isCleared } = monthlyStatusSchema.parse(req.body);
+      
+      // Update monthly status
+      const monthlyStatus = await storage.setMonthlyStatus(id, year, month, status, isCleared);
+      
+      res.json(monthlyStatus);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        const validationError = fromZodError(err);
+        return res.status(400).json({ message: validationError.message });
+      }
+      console.error("Error updating monthly transaction status:", err);
+      res.status(500).json({ message: "Failed to update monthly transaction status" });
+    }
+  });
+  
+  // Get monthly status for a transaction
+  router.get("/transactions/:id/monthly-status/:year/:month", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid transaction ID" });
+      }
+      
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ message: "Invalid year or month" });
+      }
+      
+      // Get monthly status
+      const monthlyStatus = await storage.getMonthlyStatus(id, year, month);
+      
+      if (!monthlyStatus) {
+        return res.status(404).json({ message: "Monthly status not found" });
+      }
+      
+      res.json(monthlyStatus);
+    } catch (err) {
+      console.error("Error getting monthly transaction status:", err);
+      res.status(500).json({ message: "Failed to get monthly transaction status" });
     }
   });
 

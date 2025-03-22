@@ -8,16 +8,18 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Transaction } from "@shared/schema";
+import { Transaction, TransactionWithMonthlyStatus } from "@shared/schema";
 import { formatCurrency } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useUpdateMonthlyStatus } from "@/hooks/useTransactions";
+import { useDateContext } from "@/context/DateContext";
 
 interface TransactionsListProps {
-  transactions: Transaction[];
-  onTransactionClick: (transaction: Transaction) => void;
+  transactions: TransactionWithMonthlyStatus[];
+  onTransactionClick: (transaction: TransactionWithMonthlyStatus) => void;
 }
 
 type FilterType = "all" | "expense" | "income";
@@ -29,6 +31,12 @@ export default function TransactionsList({
   const [filter, setFilter] = useState<FilterType>("all");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { selectedDate } = useDateContext();
+  const updateMonthlyStatus = useUpdateMonthlyStatus();
+  
+  // Get current year and month from selected date
+  const currentYear = selectedDate.getFullYear();
+  const currentMonth = selectedDate.getMonth() + 1; // JavaScript months are 0-indexed
   
   // Apply filter to transactions
   const filteredTransactions = transactions.filter(transaction => {
@@ -41,25 +49,33 @@ export default function TransactionsList({
     return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
   
-  const toggleTransactionStatus = async (transaction: Transaction, event: React.MouseEvent) => {
+  const toggleTransactionStatus = async (transaction: TransactionWithMonthlyStatus, event: React.MouseEvent) => {
     // Prevent the click from triggering the parent container's onClick
     event.stopPropagation();
     
     try {
+      // Get current status and its monthly override if it exists
+      const currentStatus = transaction.monthlyStatus?.status || transaction.status;
+      
       // Toggle between pending and paid
-      const newStatus = transaction.status === "pending" ? "paid" : "pending";
+      const newStatus = currentStatus === "pending" ? "paid" : "pending";
       
-      await apiRequest("PATCH", `/api/transactions/${transaction.id}`, {
-        status: newStatus
+      // For recurring transactions or when viewing non-current months, 
+      // use the monthly status API to update the status for this specific month
+      const isCleared = false; // cleared is a separate state that requires explicit action
+      
+      // Update monthly status for this specific transaction in this month
+      await updateMonthlyStatus.mutateAsync({
+        transactionId: transaction.id,
+        year: currentYear,
+        month: currentMonth,
+        status: newStatus,
+        isCleared
       });
-      
-      // Invalidate and refetch queries
-      queryClient.invalidateQueries({ queryKey: ['/api/transactions/month'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
       
       toast({
         title: "Status updated",
-        description: `Transaction marked as ${newStatus}`,
+        description: `Transaction marked as ${newStatus} for ${currentMonth}/${currentYear}`,
         variant: "default",
       });
     } catch (error) {
@@ -117,7 +133,7 @@ export default function TransactionsList({
                 <div className="flex items-center">
                   <div 
                     className={`mr-3 rounded-full p-2 
-                      ${transaction.status === 'pending' 
+                      ${(transaction.monthlyStatus?.status || transaction.status) === 'pending' 
                         ? 'bg-red-100' 
                         : transaction.type === 'income' 
                           ? 'bg-blue-100' 
@@ -127,7 +143,7 @@ export default function TransactionsList({
                   >
                     {transaction.type === 'income' ? (
                       <LayoutList className="h-4 w-4 text-blue-600" />
-                    ) : transaction.status === 'pending' ? (
+                    ) : (transaction.monthlyStatus?.status || transaction.status) === 'pending' ? (
                       <AlertCircle className="h-4 w-4 text-danger" />
                     ) : (
                       <CheckCircle className="h-4 w-4 text-success" />
@@ -147,14 +163,15 @@ export default function TransactionsList({
                   <Badge
                     variant="outline"
                     className={`text-xs ${
-                      transaction.status === 'pending'
+                      (transaction.monthlyStatus?.status || transaction.status) === 'pending'
                         ? 'bg-red-100 text-red-800'
-                        : transaction.status === 'cleared'
+                        : (transaction.monthlyStatus?.status || transaction.status) === 'cleared'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-green-100 text-green-800'
                     }`}
                   >
-                    {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+                    {(transaction.monthlyStatus?.status || transaction.status).charAt(0).toUpperCase() + 
+                     (transaction.monthlyStatus?.status || transaction.status).slice(1)}
                   </Badge>
                 </div>
               </div>

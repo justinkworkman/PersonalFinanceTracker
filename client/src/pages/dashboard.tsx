@@ -8,7 +8,7 @@ import CategoryCard from "@/components/CategoryCard";
 import CalendarView from "@/components/CalendarView";
 import TransactionsList from "@/components/TransactionsList";
 import TransactionModal from "@/components/TransactionModal";
-import { MonthlySummary, Transaction } from "@shared/schema";
+import { MonthlySummary, Transaction, TransactionWithMonthlyStatus } from "@shared/schema";
 import { useCalendar } from "@/hooks/useCalendar";
 import { useDateContext } from "@/context/DateContext";
 
@@ -16,7 +16,7 @@ export default function Dashboard() {
   // Use date context first (all hooks must be called in the same order)
   const { selectedDate, setSelectedDate } = useDateContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<TransactionWithMonthlyStatus | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
@@ -41,7 +41,7 @@ export default function Dashboard() {
   const month = selectedDate.getMonth() + 1;
   
   // Query for monthly transactions
-  const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<Transaction[]>({
+  const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<TransactionWithMonthlyStatus[]>({
     queryKey: ['/api/transactions/month', year, month],
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -60,7 +60,7 @@ export default function Dashboard() {
     setIsModalOpen(true);
   };
   
-  const handleEditTransaction = (transaction: Transaction) => {
+  const handleEditTransaction = (transaction: TransactionWithMonthlyStatus) => {
     setEditingTransaction(transaction);
     setIsModalOpen(true);
   };

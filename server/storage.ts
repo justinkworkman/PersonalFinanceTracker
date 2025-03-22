@@ -7,7 +7,11 @@ import {
   MonthlySummary,
   CategorySummary,
   getRelativeDate, 
-  getDaysInMonth
+  getDaysInMonth,
+  MonthlyTransactionStatus,
+  InsertMonthlyStatus,
+  UpdateMonthlyStatus,
+  TransactionWithMonthlyStatus
 } from "@shared/schema";
 import { startOfMonth, endOfMonth, isSameMonth, format, parseISO } from "date-fns";
 
@@ -19,11 +23,15 @@ export interface IStorage {
   
   // Transactions
   getTransactions(): Promise<Transaction[]>;
-  getTransactionsByMonth(year: number, month: number): Promise<Transaction[]>;
+  getTransactionsByMonth(year: number, month: number): Promise<TransactionWithMonthlyStatus[]>;
   getTransaction(id: number): Promise<Transaction | undefined>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: number, updates: UpdateTransaction): Promise<Transaction | undefined>;
   deleteTransaction(id: number): Promise<boolean>;
+  
+  // Monthly Transaction Status
+  getMonthlyStatus(transactionId: number, year: number, month: number): Promise<MonthlyTransactionStatus | undefined>;
+  setMonthlyStatus(transactionId: number, year: number, month: number, status: string, isCleared: boolean): Promise<MonthlyTransactionStatus>;
   
   // Summary Data
   getMonthlySummary(year: number, month: number): Promise<MonthlySummary>;
@@ -32,17 +40,24 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private categories: Map<number, Category>;
   private transactions: Map<number, Transaction>;
+  private monthlyStatuses: Map<string, MonthlyTransactionStatus>;
   private categoryCurrentId: number;
   private transactionCurrentId: number;
 
   constructor() {
     this.categories = new Map();
     this.transactions = new Map();
+    this.monthlyStatuses = new Map();
     this.categoryCurrentId = 1;
     this.transactionCurrentId = 1;
     
     // Initialize with some default categories
     this.initializeDefaultCategories();
+  }
+  
+  // Helper method to generate a unique key for monthly status
+  private getMonthlyStatusKey(transactionId: number, year: number, month: number): string {
+    return `${transactionId}-${year}-${month}`;
   }
   
   private initializeDefaultCategories() {
@@ -86,7 +101,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.transactions.values());
   }
 
-  async getTransactionsByMonth(year: number, month: number): Promise<Transaction[]> {
+  async getTransactionsByMonth(year: number, month: number): Promise<TransactionWithMonthlyStatus[]> {
     console.log(`Fetching transactions for ${year}-${month}`);
     // Calculate start and end of month
     const start = startOfMonth(new Date(year, month - 1));
@@ -118,24 +133,54 @@ export class MemStorage implements IStorage {
       // Calculate the date for this month based on the relative date type
       const newDate = this.getRecurringDateForMonth(transaction, year, month);
       
-      // Create a virtual transaction with the updated date
-      // This is not stored in the database, just generated for display
-      // Create a virtual transaction with the updated date
-      const virtualTransaction: Transaction & { isVirtualRecurrence?: boolean } = {
+      // Default values for status and isCleared
+      let status: "pending" | "paid" | "cleared" = "pending";
+      let isCleared = false;
+      
+      // Check if there's a monthly status for this transaction
+      const statusKey = this.getMonthlyStatusKey(transaction.id, year, month);
+      const monthlyStatus = this.monthlyStatuses.get(statusKey);
+      
+      if (monthlyStatus) {
+        status = monthlyStatus.status;
+        isCleared = monthlyStatus.isCleared;
+      }
+      
+      // Create a virtual transaction with the updated date and monthly status
+      const virtualTransaction: TransactionWithMonthlyStatus = {
         ...transaction,
         date: newDate.toISOString(),
-        // Reset status for recurring transactions in future months
-        status: "pending" as const,
-        isCleared: false,
-        // Mark as virtual instance to distinguish from actual transactions
-        isVirtualRecurrence: true
+        // Use the monthly status if available
+        status: status,
+        isCleared: isCleared,
+        // Include the monthly status reference
+        monthlyStatus: monthlyStatus
       };
       
       return virtualTransaction;
     });
     
+    // Enhance regular transactions with any monthly status information
+    const enhancedRegularTransactions = regularTransactions.map(transaction => {
+      // For regular transactions, check if there's any override status for this month
+      const statusKey = this.getMonthlyStatusKey(transaction.id, year, month);
+      const monthlyStatus = this.monthlyStatuses.get(statusKey);
+      
+      if (monthlyStatus) {
+        return {
+          ...transaction,
+          status: monthlyStatus.status,
+          isCleared: monthlyStatus.isCleared,
+          monthlyStatus
+        } as TransactionWithMonthlyStatus;
+      }
+      
+      // If no monthly status, just return the transaction as is
+      return { ...transaction } as TransactionWithMonthlyStatus;
+    });
+    
     // Combine regular and virtual recurring transactions
-    const allTransactions = [...regularTransactions, ...virtualRecurringTransactions];
+    const allTransactions = [...enhancedRegularTransactions, ...virtualRecurringTransactions];
     
     console.log(`Found ${allTransactions.length} transactions for ${year}-${month} (${regularTransactions.length} regular, ${virtualRecurringTransactions.length} recurring)`);
     return allTransactions;
@@ -279,6 +324,26 @@ export class MemStorage implements IStorage {
   
   async deleteTransaction(id: number): Promise<boolean> {
     return this.transactions.delete(id);
+  }
+  
+  async getMonthlyStatus(transactionId: number, year: number, month: number): Promise<MonthlyTransactionStatus | undefined> {
+    const key = this.getMonthlyStatusKey(transactionId, year, month);
+    return this.monthlyStatuses.get(key);
+  }
+  
+  async setMonthlyStatus(transactionId: number, year: number, month: number, status: string, isCleared: boolean): Promise<MonthlyTransactionStatus> {
+    const key = this.getMonthlyStatusKey(transactionId, year, month);
+    const monthlyStatus: MonthlyTransactionStatus = {
+      transactionId,
+      year,
+      month,
+      status: status as any, // Cast to proper enum type
+      isCleared
+    };
+    
+    this.monthlyStatuses.set(key, monthlyStatus);
+    console.log(`Set monthly status for transaction ${transactionId} in ${year}-${month}:`, monthlyStatus);
+    return monthlyStatus;
   }
   
   async getMonthlySummary(year: number, month: number): Promise<MonthlySummary> {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import SummaryCard from "@/components/SummaryCard";
 import StatusCard from "@/components/StatusCard";
 import CategoryCard from "@/components/CategoryCard";
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const { selectedDate, setSelectedDate } = useDateContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithMonthlyStatus | null>(null);
+  const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
@@ -124,19 +126,24 @@ export default function Dashboard() {
       </div>
       
       {/* Calendar and Transactions List */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <CalendarView 
-            calendarWeeks={calendarWeeks}
-            transactions={transactions || []}
-            month={selectedDate.getMonth()}
-            year={selectedDate.getFullYear()}
-            onPrevMonth={prevMonth}
-            onNextMonth={nextMonth}
-            goToMonth={goToMonth}
-          />
-        </div>
-        <div>
+      <div className={`grid grid-cols-1 ${!isMobile ? 'lg:grid-cols-3' : ''} gap-6`}>
+        {/* Only show calendar on non-mobile devices */}
+        {!isMobile && (
+          <div className="lg:col-span-2">
+            <CalendarView 
+              calendarWeeks={calendarWeeks}
+              transactions={transactions || []}
+              month={selectedDate.getMonth()}
+              year={selectedDate.getFullYear()}
+              onPrevMonth={prevMonth}
+              onNextMonth={nextMonth}
+              goToMonth={goToMonth}
+            />
+          </div>
+        )}
+        
+        {/* Transaction list takes full width on mobile */}
+        <div className={isMobile ? 'w-full' : ''}>
           <TransactionsList 
             transactions={transactions || []} 
             onTransactionClick={handleEditTransaction}

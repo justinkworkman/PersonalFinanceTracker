@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { useUpdateMonthlyStatus } from "@/hooks/useTransactions";
 import { useDateContext } from "@/context/DateContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface TransactionsListProps {
   transactions: TransactionWithMonthlyStatus[];
@@ -33,6 +34,7 @@ export default function TransactionsList({
   const { toast } = useToast();
   const { selectedDate } = useDateContext();
   const updateMonthlyStatus = useUpdateMonthlyStatus();
+  const isMobile = useIsMobile();
   
   // Get current year and month from selected date
   const currentYear = selectedDate.getFullYear();

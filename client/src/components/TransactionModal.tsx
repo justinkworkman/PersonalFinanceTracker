@@ -232,7 +232,7 @@ export default function TransactionModal({
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[95%] max-w-[95%] sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{transaction ? "Edit Transaction" : "Add Transaction"}</DialogTitle>
         </DialogHeader>

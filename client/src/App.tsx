@@ -23,11 +23,11 @@ function App() {
       <DateProvider>
         <div className="min-h-screen flex flex-col bg-slate-50">
           {/* Fixed header at the top */}
-          <div className="sticky top-0 z-10">
+          <div className="fixed w-full top-0 left-0 right-0 z-10">
             <Header />
           </div>
-          {/* Main content with padding to account for fixed header */}
-          <main className="flex-1 py-6 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl w-full">
+          {/* Main content with padding to account for fixed header - adjust top padding to account for header height */}
+          <main className="flex-1 pt-32 pb-6 px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl w-full mt-4">
             <Router />
           </main>
           <Footer />

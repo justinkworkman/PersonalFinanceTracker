@@ -8,16 +8,19 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Transaction } from "@shared/schema";
+import { Transaction, TransactionWithMonthlyStatus } from "@shared/schema";
 import { formatCurrency } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useUpdateMonthlyStatus } from "@/hooks/useTransactions";
+import { useDateContext } from "@/context/DateContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface TransactionsListProps {
-  transactions: Transaction[];
-  onTransactionClick: (transaction: Transaction) => void;
+  transactions: TransactionWithMonthlyStatus[];
+  onTransactionClick: (transaction: TransactionWithMonthlyStatus) => void;
 }
 
 type FilterType = "all" | "expense" | "income";
@@ -29,6 +32,13 @@ export default function TransactionsList({
   const [filter, setFilter] = useState<FilterType>("all");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { selectedDate } = useDateContext();
+  const updateMonthlyStatus = useUpdateMonthlyStatus();
+  const isMobile = useIsMobile();
+  
+  // Get current year and month from selected date
+  const currentYear = selectedDate.getFullYear();
+  const currentMonth = selectedDate.getMonth() + 1; // JavaScript months are 0-indexed
   
   // Apply filter to transactions
   const filteredTransactions = transactions.filter(transaction => {
@@ -41,25 +51,33 @@ export default function TransactionsList({
     return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
   
-  const toggleTransactionStatus = async (transaction: Transaction, event: React.MouseEvent) => {
+  const toggleTransactionStatus = async (transaction: TransactionWithMonthlyStatus, event: React.MouseEvent) => {
     // Prevent the click from triggering the parent container's onClick
     event.stopPropagation();
     
     try {
+      // Get current status and its monthly override if it exists
+      const currentStatus = transaction.monthlyStatus?.status || transaction.status;
+      
       // Toggle between pending and paid
-      const newStatus = transaction.status === "pending" ? "paid" : "pending";
+      const newStatus = currentStatus === "pending" ? "paid" : "pending";
       
-      await apiRequest("PATCH", `/api/transactions/${transaction.id}`, {
-        status: newStatus
+      // For recurring transactions or when viewing non-current months, 
+      // use the monthly status API to update the status for this specific month
+      const isCleared = false; // cleared is a separate state that requires explicit action
+      
+      // Update monthly status for this specific transaction in this month
+      await updateMonthlyStatus.mutateAsync({
+        transactionId: transaction.id,
+        year: currentYear,
+        month: currentMonth,
+        status: newStatus,
+        isCleared
       });
-      
-      // Invalidate and refetch queries
-      queryClient.invalidateQueries({ queryKey: ['/api/transactions/month'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
       
       toast({
         title: "Status updated",
-        description: `Transaction marked as ${newStatus}`,
+        description: `Transaction marked as ${newStatus} for ${currentMonth}/${currentYear}`,
         variant: "default",
       });
     } catch (error) {
@@ -73,8 +91,9 @@ export default function TransactionsList({
   };
   
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+    <Card className={isMobile ? "w-full" : ""}>
+      {/* Desktop header */}
+      <CardHeader className={`${isMobile ? 'hidden' : 'flex'} flex-row items-center justify-between space-y-0 pb-2`}>
         <CardTitle className="text-lg font-semibold">Transactions</CardTitle>
         <div className="flex space-x-2">
           <Button 
@@ -100,6 +119,37 @@ export default function TransactionsList({
           </Button>
         </div>
       </CardHeader>
+      
+      {/* Mobile header */}
+      <CardHeader className={`${isMobile ? 'flex' : 'hidden'} flex-col space-y-2 pb-2 pt-4 px-5`}>
+        <CardTitle className="text-base font-semibold">Transactions</CardTitle>
+        <div className="flex w-full space-x-1">
+          <Button 
+            variant={filter === "all" ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setFilter("all")}
+            className="flex-1"
+          >
+            All
+          </Button>
+          <Button 
+            variant={filter === "expense" ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setFilter("expense")}
+            className="flex-1"
+          >
+            Exp
+          </Button>
+          <Button 
+            variant={filter === "income" ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setFilter("income")}
+            className="flex-1"
+          >
+            Inc
+          </Button>
+        </div>
+      </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-slate-200 max-h-[600px] overflow-y-auto">
           {sortedTransactions.length === 0 ? (
@@ -111,13 +161,13 @@ export default function TransactionsList({
             sortedTransactions.map((transaction) => (
               <div 
                 key={transaction.id}
-                className="p-3 flex justify-between items-center cursor-pointer hover:bg-slate-50"
+                className={`${isMobile ? 'p-2' : 'p-3'} flex justify-between items-center cursor-pointer hover:bg-slate-50`}
                 onClick={() => onTransactionClick(transaction)}
               >
                 <div className="flex items-center">
                   <div 
-                    className={`mr-3 rounded-full p-2 
-                      ${transaction.status === 'pending' 
+                    className={`${isMobile ? 'mr-2 p-1.5' : 'mr-3 p-2'} rounded-full 
+                      ${(transaction.monthlyStatus?.status || transaction.status) === 'pending' 
                         ? 'bg-red-100' 
                         : transaction.type === 'income' 
                           ? 'bg-blue-100' 
@@ -127,34 +177,39 @@ export default function TransactionsList({
                   >
                     {transaction.type === 'income' ? (
                       <LayoutList className="h-4 w-4 text-blue-600" />
-                    ) : transaction.status === 'pending' ? (
+                    ) : (transaction.monthlyStatus?.status || transaction.status) === 'pending' ? (
                       <AlertCircle className="h-4 w-4 text-danger" />
                     ) : (
                       <CheckCircle className="h-4 w-4 text-success" />
                     )}
                   </div>
-                  <div>
-                    <div className="font-medium text-slate-800">{transaction.description}</div>
+                  <div className={isMobile ? 'mr-1' : ''}>
+                    <div className={`${isMobile ? 'text-sm' : ''} font-medium text-slate-800 truncate ${isMobile ? 'max-w-[140px]' : ''}`}>
+                      {transaction.description}
+                    </div>
                     <div className="text-xs text-slate-500">
-                      {format(new Date(transaction.date), "MMM d, yyyy")}
+                      {format(new Date(transaction.date), isMobile ? "MM/dd" : "MMM d, yyyy")}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className={`font-medium ${transaction.type === 'income' ? 'text-success' : 'text-danger'}`}>
+                  <div className={`${isMobile ? 'text-sm' : ''} font-medium ${transaction.type === 'income' ? 'text-success' : 'text-danger'}`}>
                     {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                   </div>
                   <Badge
                     variant="outline"
                     className={`text-xs ${
-                      transaction.status === 'pending'
+                      (transaction.monthlyStatus?.status || transaction.status) === 'pending'
                         ? 'bg-red-100 text-red-800'
-                        : transaction.status === 'cleared'
+                        : (transaction.monthlyStatus?.status || transaction.status) === 'cleared'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-green-100 text-green-800'
                     }`}
                   >
-                    {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+                    {isMobile ? 
+                      ((transaction.monthlyStatus?.status || transaction.status).charAt(0).toUpperCase()) :
+                      ((transaction.monthlyStatus?.status || transaction.status).charAt(0).toUpperCase() + 
+                       (transaction.monthlyStatus?.status || transaction.status).slice(1))}
                   </Badge>
                 </div>
               </div>

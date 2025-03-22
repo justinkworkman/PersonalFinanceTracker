@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDateContext } from "@/context/DateContext";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,15 +37,28 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { CalendarIcon, Trash2Icon } from "lucide-react";
 import { 
   insertTransactionSchema, 
-  Transaction, 
+  Transaction,
+  TransactionWithMonthlyStatus,
   Category, 
   getRelativeDate,
   getDaysInMonth
 } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { useDeleteTransaction } from "@/hooks/useTransactions";
 import { cn } from "@/lib/utils";
 
 // Extend the schema for form validation
@@ -66,7 +80,7 @@ interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onTransactionCreated: () => void;
-  transaction: Transaction | null;
+  transaction: TransactionWithMonthlyStatus | null;
 }
 
 export default function TransactionModal({ 
@@ -77,6 +91,11 @@ export default function TransactionModal({
 }: TransactionModalProps) {
   // State to track if we're using a relative date
   const [showRelativeDateOptions, setShowRelativeDateOptions] = useState(false);
+  // State to track delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  
+  // Get delete transaction mutation
+  const deleteTransaction = useDeleteTransaction();
   
   // Get categories from the API
   const { data: categories } = useQuery<Category[]>({
@@ -122,7 +141,8 @@ export default function TransactionModal({
       setShowRelativeDateOptions(isRelativeDate);
       
       // For recurring transactions with relative dates, make sure we have proper day of month for custom type
-      let dayOfMonth = transaction.dayOfMonth;
+      // Convert from number|null to number|undefined
+      let dayOfMonth: number | undefined = transaction.dayOfMonth ? Number(transaction.dayOfMonth) : undefined;
       if (isRelativeDate && transaction.relativeDateType === "custom" && !dayOfMonth) {
         dayOfMonth = 15; // Default to 15th if no day specified but using custom relative date
       }
@@ -133,9 +153,9 @@ export default function TransactionModal({
         amount: transaction.amount,
         date: new Date(transaction.date),
         categoryId: transaction.categoryId,
-        status: transaction.status as "pending" | "paid" | "cleared",
+        status: (transaction.monthlyStatus?.status || transaction.status) as "pending" | "paid" | "cleared",
         recurrence: transaction.recurrence as "once" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly",
-        isCleared: transaction.isCleared,
+        isCleared: transaction.monthlyStatus?.isCleared ?? transaction.isCleared,
         relativeDateType: (transaction.relativeDateType || "fixed") as "fixed" | "first_day" | "last_day" | "custom",
         dayOfMonth: dayOfMonth
       });
@@ -163,6 +183,9 @@ export default function TransactionModal({
   }, [form, showRelativeDateOptions]);
 
   // Handle form submission
+  // Access date context to get current month/year
+  const { selectedDate } = useDateContext();
+  
   const onSubmit = async (data: FormValues) => {
     try {
       // Process data before submission
@@ -186,12 +209,34 @@ export default function TransactionModal({
         submissionData.originalDate = undefined;
       }
       
+      // Get current month/year for monthly status updates
+      const currentYear = selectedDate.getFullYear();
+      const currentMonth = selectedDate.getMonth() + 1; // JS months are 0-based
+      
       if (transaction) {
         // Update existing transaction
         await apiRequest("PATCH", `/api/transactions/${transaction.id}`, submissionData);
+        
+        // If this is a recurring transaction, also update the monthly status
+        if (transaction.recurrence !== "once") {
+          // Update monthly status for current month
+          await apiRequest("PUT", `/api/transactions/${transaction.id}/monthly-status/${currentYear}/${currentMonth}`, {
+            status: data.status,
+            isCleared: data.isCleared
+          });
+        }
       } else {
         // Create new transaction
-        await apiRequest("POST", "/api/transactions", submissionData);
+        const newTransaction = await apiRequest<Transaction>("POST", "/api/transactions", submissionData);
+        
+        // If this is a recurring transaction, also set the monthly status
+        if (data.recurrence !== "once" && newTransaction.id) {
+          // Set monthly status for current month
+          await apiRequest("PUT", `/api/transactions/${newTransaction.id}/monthly-status/${currentYear}/${currentMonth}`, {
+            status: data.status,
+            isCleared: data.isCleared
+          });
+        }
       }
       
       // Reset form after successful submission
@@ -204,7 +249,7 @@ export default function TransactionModal({
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[95%] max-w-[95%] sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{transaction ? "Edit Transaction" : "Add Transaction"}</DialogTitle>
         </DialogHeader>
@@ -519,13 +564,57 @@ export default function TransactionModal({
               )}
             />
             
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {transaction ? "Update" : "Save"} Transaction
-              </Button>
+            <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+              <div className="flex w-full sm:w-auto order-2 sm:order-1 justify-start">
+                {transaction && (
+                  <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        type="button" 
+                        variant="destructive"
+                        className="flex items-center gap-1"
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete this transaction? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={async () => {
+                            if (transaction) {
+                              try {
+                                await deleteTransaction.mutateAsync(transaction.id);
+                                onClose();
+                                onTransactionCreated();
+                              } catch (error) {
+                                console.error("Error deleting transaction:", error);
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto sm:order-2 justify-end">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {transaction ? "Update" : "Save"} Transaction
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

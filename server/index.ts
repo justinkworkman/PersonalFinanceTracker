@@ -1,6 +1,12 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { PgStorage } from "./pgStorage";
+import { storage, IStorage } from "./storage";
+import { initDb } from "./db";
+
+// Create storage instance
+let activeStorage: IStorage = storage;
 
 const app = express();
 app.use(express.json());
@@ -37,7 +43,25 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Initialize PostgreSQL database if needed
+  if (process.env.DATABASE_URL) {
+    try {
+      // Initialize the database (create tables if they don't exist)
+      await initDb();
+      // Create a new PostgreSQL storage instance
+      activeStorage = new PgStorage();
+      log('PostgreSQL database initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize PostgreSQL database:', error);
+      log('Falling back to in-memory storage due to database initialization error');
+      // Keep using the default in-memory storage
+    }
+  }
+
+  // Log which storage we're using
+  log(`Using ${activeStorage instanceof PgStorage ? 'PostgreSQL' : 'in-memory'} storage`);
+  
+  const server = await registerRoutes(app, activeStorage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

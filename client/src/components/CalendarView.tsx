@@ -16,6 +16,7 @@ interface CalendarViewProps {
   onPrevMonth: () => void;
   onNextMonth: () => void;
   goToMonth: (date: Date) => void;
+  onTransactionClick?: (transaction: Transaction) => void;
 }
 
 export default function CalendarView({ 
@@ -25,7 +26,8 @@ export default function CalendarView({
   year,
   onPrevMonth,
   onNextMonth,
-  goToMonth
+  goToMonth,
+  onTransactionClick
 }: CalendarViewProps) {
   const currentDate = new Date(year, month);
   
@@ -59,6 +61,7 @@ export default function CalendarView({
                   key={`day-${weekIndex}-${dayIndex}`}
                   calendarItem={day}
                   isToday={isToday(day.date)}
+                  onTransactionClick={onTransactionClick}
                 />
               ))}
             </div>
@@ -89,9 +92,10 @@ export default function CalendarView({
 interface CalendarDayProps {
   calendarItem: CalendarItem;
   isToday: boolean;
+  onTransactionClick?: (transaction: Transaction) => void;
 }
 
-function CalendarDay({ calendarItem, isToday }: CalendarDayProps) {
+function CalendarDay({ calendarItem, isToday, onTransactionClick }: CalendarDayProps) {
   const { day, isCurrentMonth, date, transactions } = calendarItem;
   
   // Sort transactions: income first, then expenses
@@ -122,7 +126,7 @@ function CalendarDay({ calendarItem, isToday }: CalendarDayProps) {
               <div 
                 key={transaction.id}
                 className={`
-                  expense-pill text-xs p-0.5 px-1.5 rounded-full truncate
+                  expense-pill text-xs p-0.5 px-1.5 rounded-full truncate cursor-pointer
                   ${transaction.type === 'income' 
                     ? 'bg-blue-100 text-blue-800' 
                     : transaction.status === 'pending' 
@@ -131,6 +135,7 @@ function CalendarDay({ calendarItem, isToday }: CalendarDayProps) {
                   }
                 `}
                 title={`${transaction.description}: ${formatCurrency(transaction.amount)}`}
+                onClick={() => onTransactionClick?.(transaction)}
               >
                 {`${transaction.description}: ${formatCurrency(transaction.amount)}`}
               </div>

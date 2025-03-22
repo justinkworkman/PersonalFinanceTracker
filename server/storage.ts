@@ -7,7 +7,11 @@ import {
   MonthlySummary,
   CategorySummary,
   getRelativeDate, 
-  getDaysInMonth
+  getDaysInMonth,
+  MonthlyTransactionStatus,
+  InsertMonthlyStatus,
+  UpdateMonthlyStatus,
+  TransactionWithMonthlyStatus
 } from "@shared/schema";
 import { startOfMonth, endOfMonth, isSameMonth, format, parseISO } from "date-fns";
 
@@ -19,11 +23,15 @@ export interface IStorage {
   
   // Transactions
   getTransactions(): Promise<Transaction[]>;
-  getTransactionsByMonth(year: number, month: number): Promise<Transaction[]>;
+  getTransactionsByMonth(year: number, month: number): Promise<TransactionWithMonthlyStatus[]>;
   getTransaction(id: number): Promise<Transaction | undefined>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: number, updates: UpdateTransaction): Promise<Transaction | undefined>;
   deleteTransaction(id: number): Promise<boolean>;
+  
+  // Monthly Transaction Status
+  getMonthlyStatus(transactionId: number, year: number, month: number): Promise<MonthlyTransactionStatus | undefined>;
+  setMonthlyStatus(transactionId: number, year: number, month: number, status: string, isCleared: boolean): Promise<MonthlyTransactionStatus>;
   
   // Summary Data
   getMonthlySummary(year: number, month: number): Promise<MonthlySummary>;
@@ -32,17 +40,24 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private categories: Map<number, Category>;
   private transactions: Map<number, Transaction>;
+  private monthlyStatuses: Map<string, MonthlyTransactionStatus>;
   private categoryCurrentId: number;
   private transactionCurrentId: number;
 
   constructor() {
     this.categories = new Map();
     this.transactions = new Map();
+    this.monthlyStatuses = new Map();
     this.categoryCurrentId = 1;
     this.transactionCurrentId = 1;
     
     // Initialize with some default categories
     this.initializeDefaultCategories();
+  }
+  
+  // Helper method to generate a unique key for monthly status
+  private getMonthlyStatusKey(transactionId: number, year: number, month: number): string {
+    return `${transactionId}-${year}-${month}`;
   }
   
   private initializeDefaultCategories() {
@@ -86,7 +101,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.transactions.values());
   }
 
-  async getTransactionsByMonth(year: number, month: number): Promise<Transaction[]> {
+  async getTransactionsByMonth(year: number, month: number): Promise<TransactionWithMonthlyStatus[]> {
     console.log(`Fetching transactions for ${year}-${month}`);
     // Calculate start and end of month
     const start = startOfMonth(new Date(year, month - 1));
@@ -118,24 +133,65 @@ export class MemStorage implements IStorage {
       // Calculate the date for this month based on the relative date type
       const newDate = this.getRecurringDateForMonth(transaction, year, month);
       
-      // Create a virtual transaction with the updated date
-      // This is not stored in the database, just generated for display
-      // Create a virtual transaction with the updated date
-      const virtualTransaction: Transaction & { isVirtualRecurrence?: boolean } = {
+      // Get current date to determine if this is a future month
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-based
+      
+      // Default values for status and isCleared
+      // Always default to "pending" for future months
+      let status: "pending" | "paid" | "cleared" = "pending";
+      let isCleared = false;
+      
+      // Check if there's a monthly status for this transaction
+      const statusKey = this.getMonthlyStatusKey(transaction.id, year, month);
+      const monthlyStatus = this.monthlyStatuses.get(statusKey);
+      
+      if (monthlyStatus) {
+        // If there's an explicit monthly status set, use it
+        status = monthlyStatus.status;
+        isCleared = monthlyStatus.isCleared;
+      } else if (year > currentYear || (year === currentYear && month > currentMonth)) {
+        // For future months with no explicit status, always default to pending
+        status = "pending";
+        isCleared = false;
+      }
+      
+      // Create a virtual transaction with the updated date and monthly status
+      const virtualTransaction: TransactionWithMonthlyStatus = {
         ...transaction,
         date: newDate.toISOString(),
-        // Reset status for recurring transactions in future months
-        status: "pending" as const,
-        isCleared: false,
-        // Mark as virtual instance to distinguish from actual transactions
-        isVirtualRecurrence: true
+        // Use the monthly status if available
+        status: status,
+        isCleared: isCleared,
+        // Include the monthly status reference
+        monthlyStatus: monthlyStatus
       };
       
       return virtualTransaction;
     });
     
+    // Enhance regular transactions with any monthly status information
+    const enhancedRegularTransactions = regularTransactions.map(transaction => {
+      // For regular transactions, check if there's any override status for this month
+      const statusKey = this.getMonthlyStatusKey(transaction.id, year, month);
+      const monthlyStatus = this.monthlyStatuses.get(statusKey);
+      
+      if (monthlyStatus) {
+        return {
+          ...transaction,
+          status: monthlyStatus.status,
+          isCleared: monthlyStatus.isCleared,
+          monthlyStatus
+        } as TransactionWithMonthlyStatus;
+      }
+      
+      // If no monthly status, just return the transaction as is
+      return { ...transaction } as TransactionWithMonthlyStatus;
+    });
+    
     // Combine regular and virtual recurring transactions
-    const allTransactions = [...regularTransactions, ...virtualRecurringTransactions];
+    const allTransactions = [...enhancedRegularTransactions, ...virtualRecurringTransactions];
     
     console.log(`Found ${allTransactions.length} transactions for ${year}-${month} (${regularTransactions.length} regular, ${virtualRecurringTransactions.length} recurring)`);
     return allTransactions;
@@ -208,16 +264,48 @@ export class MemStorage implements IStorage {
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
     const id = this.transactionCurrentId++;
     
-    // For recurring transactions, ensure we have an originalDate
+    // Adjust the date for recurring transactions with custom day of month
+    let dateValue = insertTransaction.date;
     let originalDate: string | null = insertTransaction.originalDate || null;
-    if (insertTransaction.recurrence !== "once" && !originalDate) {
-      originalDate = insertTransaction.date;
+    
+    // If this is a recurring transaction with a relative date (custom day of month)
+    if (insertTransaction.recurrence !== "once" && 
+        insertTransaction.relativeDateType === "custom" && 
+        insertTransaction.dayOfMonth) {
+      
+      // Parse the input date to get the month and year
+      const inputDate = new Date(insertTransaction.date);
+      const year = inputDate.getFullYear();
+      const month = inputDate.getMonth() + 1; // JavaScript months are 0-based
+      
+      // Create a new date with the custom day of month
+      const adjustedDate = getRelativeDate(
+        year,
+        month,
+        "custom",
+        insertTransaction.dayOfMonth,
+        insertTransaction.date
+      );
+      
+      // Update the date value
+      dateValue = adjustedDate.toISOString();
+      
+      // Store the original input date for future reference
+      if (!originalDate) {
+        originalDate = dateValue;
+      }
+    } 
+    // For other recurring transactions, ensure we have an originalDate
+    else if (insertTransaction.recurrence !== "once" && !originalDate) {
+      originalDate = dateValue;
     }
     
     // Create the transaction with default values for required fields
     const transaction: Transaction = { 
       id, 
       ...insertTransaction,
+      // Override with adjusted date if necessary
+      date: dateValue,
       // Make sure we have all required fields by setting defaults
       type: insertTransaction.type || "expense",
       status: insertTransaction.status || "pending",
@@ -251,16 +339,41 @@ export class MemStorage implements IStorage {
       dateValue = newDate.toISOString();
     }
     
+    // Determine whether we need to adjust the date based on relative date settings
+    const relativeDateType = updates.relativeDateType || existingTransaction.relativeDateType;
+    const dayOfMonth = updates.dayOfMonth !== undefined ? updates.dayOfMonth : existingTransaction.dayOfMonth;
+    const recurrence = updates.recurrence || existingTransaction.recurrence;
+    
+    // If this is a recurring transaction with custom day of month, adjust the date
+    if (recurrence !== "once" && relativeDateType === "custom" && dayOfMonth) {
+      // Get the year and month from the current date value
+      const currentDate = new Date(dateValue);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1; // JavaScript months are 0-based
+      
+      // Create a new date with the custom day of month
+      const adjustedDate = getRelativeDate(
+        year,
+        month,
+        "custom",
+        dayOfMonth,
+        dateValue
+      );
+      
+      // Update the date value
+      dateValue = adjustedDate.toISOString();
+    }
+    
     // Ensure we have the correct originalDate for recurring transactions
     let originalDateValue: string | null = updates.originalDate || existingTransaction.originalDate;
     
     // If recurrence is being updated to be recurring, and there's no originalDate, use the transaction date
-    if (updates.recurrence && updates.recurrence !== "once" && !originalDateValue) {
+    if (recurrence !== "once" && !originalDateValue) {
       originalDateValue = dateValue;
     }
     
     // If recurrence is being updated to be non-recurring, clear originalDate
-    if (updates.recurrence === "once") {
+    if (recurrence === "once") {
       originalDateValue = null;
     }
     
@@ -281,6 +394,26 @@ export class MemStorage implements IStorage {
     return this.transactions.delete(id);
   }
   
+  async getMonthlyStatus(transactionId: number, year: number, month: number): Promise<MonthlyTransactionStatus | undefined> {
+    const key = this.getMonthlyStatusKey(transactionId, year, month);
+    return this.monthlyStatuses.get(key);
+  }
+  
+  async setMonthlyStatus(transactionId: number, year: number, month: number, status: string, isCleared: boolean): Promise<MonthlyTransactionStatus> {
+    const key = this.getMonthlyStatusKey(transactionId, year, month);
+    const monthlyStatus: MonthlyTransactionStatus = {
+      transactionId,
+      year,
+      month,
+      status: status as any, // Cast to proper enum type
+      isCleared
+    };
+    
+    this.monthlyStatuses.set(key, monthlyStatus);
+    console.log(`Set monthly status for transaction ${transactionId} in ${year}-${month}:`, monthlyStatus);
+    return monthlyStatus;
+  }
+  
   async getMonthlySummary(year: number, month: number): Promise<MonthlySummary> {
     const transactions = await this.getTransactionsByMonth(year, month);
     
@@ -293,8 +426,35 @@ export class MemStorage implements IStorage {
       .filter(t => t.type === "expense")
       .reduce((total, t) => total + t.amount, 0);
     
-    const totalTransactions = transactions.length;
-    const paidTransactions = transactions.filter(t => t.status === "paid" || t.status === "cleared").length;
+    // Get current date to determine if this is a future month
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-based
+    
+    // Only count expense transactions for payment status tracking
+    const expenseTransactions = transactions.filter(t => t.type === "expense");
+    const totalTransactions = expenseTransactions.length;
+    
+    // Count transactions marked as paid or cleared
+    // If this is a future month, only count as paid if they have an explicit monthly status override
+    const paidTransactions = expenseTransactions.filter(t => {
+      // Check if this is a future month
+      const isFutureMonth = (year > currentYear || (year === currentYear && month > currentMonth));
+      
+      if (isFutureMonth) {
+        // In future months, only consider a transaction paid if it has an explicit monthly status override
+        if (t.monthlyStatus) {
+          return (t.monthlyStatus.status === "paid" || t.monthlyStatus.status === "cleared");
+        } else {
+          // Without explicit monthly status in future months, always consider it pending
+          return false;
+        }
+      } else {
+        // For current or past months, use the transaction status
+        return (t.status === "paid" || t.status === "cleared");
+      }
+    }).length;
+    
     const pendingTransactions = totalTransactions - paidTransactions;
     const percentPaid = totalTransactions > 0 ? (paidTransactions / totalTransactions) * 100 : 0;
     

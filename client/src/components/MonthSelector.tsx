@@ -26,18 +26,31 @@ export default function MonthSelector({
   });
 
   const handleSelectChange = (value: string) => {
-    const [year, month] = value.split('-').map(Number);
-    const newDate = new Date(year, month - 1);
-    goToMonth(newDate);
+    try {
+      const [year, month] = value.split('-').map(Number);
+      const newDate = new Date(year, month - 1);
+      console.log('MonthSelector - Calling goToMonth with:', newDate);
+      console.log('goToMonth is:', typeof goToMonth);
+      
+      if (typeof goToMonth !== 'function') {
+        console.error('goToMonth is not a function!', goToMonth);
+        return;
+      }
+      
+      goToMonth(newDate);
+    } catch (error) {
+      console.error('Error in handleSelectChange:', error);
+    }
   };
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center gap-1 md:gap-2">
       <Button 
         variant="ghost" 
         size="icon" 
         onClick={onPrevMonth}
         aria-label="Previous Month"
+        className="flex-shrink-0"
       >
         <ChevronLeft className="h-5 w-5" />
       </Button>
@@ -46,8 +59,8 @@ export default function MonthSelector({
         value={`${currentDate.getFullYear()}-${currentDate.getMonth() + 1}`}
         onValueChange={handleSelectChange}
       >
-        <SelectTrigger className="w-36 font-medium">
-          <SelectValue>{format(currentDate, "MMMM yyyy")}</SelectValue>
+        <SelectTrigger className="w-[100px] md:w-36 font-medium">
+          <SelectValue>{format(currentDate, "MMM yyyy")}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {monthOptions.map((option) => (
@@ -63,6 +76,7 @@ export default function MonthSelector({
         size="icon" 
         onClick={onNextMonth}
         aria-label="Next Month"
+        className="flex-shrink-0"
       >
         <ChevronRight className="h-5 w-5" />
       </Button>

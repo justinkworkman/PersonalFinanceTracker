@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, date, timestamp, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, date, timestamp, real, pgEnum, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -39,6 +39,20 @@ export const transactions = pgTable("transactions", {
   createdAt: text("created_at").notNull(), // Using text for timestamp to store ISO strings
 });
 
+// Table to track monthly status of recurring transactions
+export const monthlyTransactionStatus = pgTable("monthly_transaction_status", {
+  transactionId: integer("transaction_id").notNull().references(() => transactions.id),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  status: transactionStatusEnum("status").notNull().default("pending"),
+  isCleared: boolean("is_cleared").notNull().default(false),
+}, (table) => {
+  // Composite primary key: transactionId + year + month
+  return {
+    pk: primaryKey(table.transactionId, table.year, table.month),
+  };
+});
+
 // Create schemas for validation and typing
 export const insertCategorySchema = createInsertSchema(categories);
 export const insertTransactionSchema = createInsertSchema(transactions).omit({
@@ -59,6 +73,10 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({
   )
 });
 
+// Create a schema for monthly transaction status
+export const insertMonthlyStatusSchema = createInsertSchema(monthlyTransactionStatus);
+export const updateMonthlyStatusSchema = createInsertSchema(monthlyTransactionStatus).partial();
+
 // Create schemas for updates
 export const updateTransactionSchema = insertTransactionSchema.partial();
 
@@ -69,6 +87,15 @@ export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type UpdateTransaction = z.infer<typeof updateTransactionSchema>;
+
+export type MonthlyTransactionStatus = typeof monthlyTransactionStatus.$inferSelect;
+export type InsertMonthlyStatus = z.infer<typeof insertMonthlyStatusSchema>;
+export type UpdateMonthlyStatus = z.infer<typeof updateMonthlyStatusSchema>;
+
+// Type to represent a transaction with its monthly status
+export type TransactionWithMonthlyStatus = Transaction & {
+  monthlyStatus?: MonthlyTransactionStatus;
+};
 
 // Type for the monthly summary data
 export type MonthlySummary = {

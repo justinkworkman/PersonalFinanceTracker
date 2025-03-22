@@ -2,24 +2,25 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import SummaryCard from "@/components/SummaryCard";
 import StatusCard from "@/components/StatusCard";
 import CategoryCard from "@/components/CategoryCard";
 import CalendarView from "@/components/CalendarView";
 import TransactionsList from "@/components/TransactionsList";
 import TransactionModal from "@/components/TransactionModal";
-import { MonthlySummary, Transaction } from "@shared/schema";
+import { MonthlySummary, Transaction, TransactionWithMonthlyStatus } from "@shared/schema";
 import { useCalendar } from "@/hooks/useCalendar";
+import { useDateContext } from "@/context/DateContext";
 
 export default function Dashboard() {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // Use date context first (all hooks must be called in the same order)
+  const { selectedDate, setSelectedDate } = useDateContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<TransactionWithMonthlyStatus | null>(null);
+  const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
-  const year = selectedDate.getFullYear();
-  const month = selectedDate.getMonth() + 1;
   
   // Navigation functions for month
   const prevMonth = () => {
@@ -38,8 +39,11 @@ export default function Dashboard() {
     setSelectedDate(date);
   };
   
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth() + 1;
+  
   // Query for monthly transactions
-  const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<Transaction[]>({
+  const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<TransactionWithMonthlyStatus[]>({
     queryKey: ['/api/transactions/month', year, month],
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -58,7 +62,7 @@ export default function Dashboard() {
     setIsModalOpen(true);
   };
   
-  const handleEditTransaction = (transaction: Transaction) => {
+  const handleEditTransaction = (transaction: TransactionWithMonthlyStatus) => {
     setEditingTransaction(transaction);
     setIsModalOpen(true);
   };
@@ -102,11 +106,11 @@ export default function Dashboard() {
       </div>
     );
   }
-  
+
   return (
     <>
       {/* Dashboard Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className={`grid grid-cols-1 ${isMobile ? 'gap-4 mb-4 w-full' : 'md:grid-cols-3 gap-6 mb-8'}`}>
         <SummaryCard 
           income={summary?.income || 0} 
           expenses={summary?.expenses || 0} 
@@ -121,9 +125,17 @@ export default function Dashboard() {
         <CategoryCard categories={summary?.categories || []} />
       </div>
       
-      {/* Calendar and Transactions List */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      {/* Transactions List */}
+      <div className="w-full mb-6">
+        <TransactionsList 
+          transactions={transactions || []} 
+          onTransactionClick={handleEditTransaction}
+        />
+      </div>
+      
+      {/* Calendar - Only show on non-mobile devices */}
+      {!isMobile && (
+        <div className="w-full">
           <CalendarView 
             calendarWeeks={calendarWeeks}
             transactions={transactions || []}
@@ -132,15 +144,10 @@ export default function Dashboard() {
             onPrevMonth={prevMonth}
             onNextMonth={nextMonth}
             goToMonth={goToMonth}
-          />
-        </div>
-        <div>
-          <TransactionsList 
-            transactions={transactions || []} 
             onTransactionClick={handleEditTransaction}
           />
         </div>
-      </div>
+      )}
       
       {/* Transaction Modal */}
       <TransactionModal 

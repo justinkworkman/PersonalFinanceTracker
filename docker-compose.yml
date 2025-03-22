@@ -1,8 +1,27 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
+  client:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
     ports:
       - "5000:5000"
     depends_on:
@@ -16,10 +35,14 @@ services:
       - PGPASSWORD=postgres
       - PGDATABASE=finance
       - PGPORT=5432
+      - INITIALIZE_DEFAULT_DATA=true
     restart: unless-stopped
-    volumes:
-      - ./:/app
-      - /app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   db:
     image: postgres:16-alpine
@@ -34,7 +57,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
 

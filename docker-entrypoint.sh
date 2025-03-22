@@ -1,22 +1,24 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
-# Function to wait for PostgreSQL to be ready
-wait_for_postgres() {
-  echo "Waiting for PostgreSQL to be ready..."
-  until PGPASSWORD=$PGPASSWORD psql -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c '\q'; do
-    echo "PostgreSQL is unavailable - sleeping"
-    sleep 2
-  done
-  echo "PostgreSQL is up - executing command"
-}
-
 # Wait for PostgreSQL to be ready
-wait_for_postgres
+echo "Waiting for PostgreSQL..."
+until PGPASSWORD=$PGPASSWORD psql -h $PGHOST -U $PGUSER -d $PGDATABASE -c '\q'; do
+  echo "PostgreSQL is unavailable - sleeping"
+  sleep 2
+done
+echo "PostgreSQL is up"
 
-# Run database initialization
+# Initialize the database
 echo "Initializing database..."
-./init-db.sh
+npm run db:push
 
-# Execute the main command (npm start)
+# Set up the default categories if needed
+echo "Setting up default data..."
+if [ "$INITIALIZE_DEFAULT_DATA" = "true" ]; then
+  node server/init-data.js
+fi
+
+# Start the application
+echo "Starting application..."
 exec "$@"

@@ -1,6 +1,11 @@
+# =====================================================================
+# DEPRECATED: This Dockerfile is kept for reference but is no longer used.
+# Please use the separate client/Dockerfile and server/Dockerfile instead.
+# =====================================================================
+
 FROM node:20-slim
 
-# Install PostgreSQL client for database wait script
+# Install PostgreSQL client for database connection
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -12,8 +17,8 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
-# Make the initialization script executable
-RUN chmod +x init-db.sh
+# Make scripts executable
+RUN chmod +x docker-entrypoint.sh wait-for-db.sh init-db.sh
 
 # Build the application
 RUN npm run build
@@ -25,11 +30,8 @@ EXPOSE 5000
 ENV NODE_ENV=production
 ENV DATABASE_URL=postgres://postgres:postgres@db:5432/finance
 
-# Create an entrypoint script to handle database initialization and app startup
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Set up entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
-ENTRYPOINT ["docker-entrypoint.sh"]
-
-# Command to run the app
+# Default command
 CMD ["npm", "start"]

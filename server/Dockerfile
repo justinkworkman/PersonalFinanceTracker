@@ -18,8 +18,8 @@ COPY drizzle.config.ts ./
 COPY wait-for-db.sh docker-entrypoint.sh ./
 RUN chmod +x wait-for-db.sh docker-entrypoint.sh
 
-# Build the server
-RUN npm run build
+# Build only the server part
+RUN npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 
 # Expose the port the API runs on
 EXPOSE 5000

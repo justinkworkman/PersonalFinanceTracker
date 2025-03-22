@@ -6,13 +6,13 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy client and shared folders
-COPY client/ ./client/
-COPY shared/ ./shared/
-COPY postcss.config.js tailwind.config.ts theme.json vite.config.ts ./
+# Copy the entire project (needed for build context)
+COPY . .
 
-# Build the client
-RUN npm run build
+# Build only the client using Vite
+# Note that vite.config.ts specifies client/ as the root
+WORKDIR /app
+RUN npx vite build
 
 # Use nginx to serve the static files
 FROM nginx:alpine
@@ -21,7 +21,8 @@ FROM nginx:alpine
 RUN apk add --no-cache curl
 
 # Copy the built client files to nginx's serving directory
-COPY --from=build /app/dist /usr/share/nginx/html
+# The vite.config.ts specifies the output directory as dist/public
+COPY --from=build /app/dist/public /usr/share/nginx/html
 
 # Copy a custom nginx configuration to properly handle SPA routing
 RUN echo 'server { \

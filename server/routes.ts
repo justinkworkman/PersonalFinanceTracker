@@ -74,16 +74,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get transactions by month
-  router.get("/transactions/month/:year/:month", async (req, res) => {
+  // Get transactions by month with or without params
+  router.get("/transactions/month/:year?/:month?", async (req, res) => {
     try {
-      const year = parseInt(req.params.year);
-      const month = parseInt(req.params.month);
+      let year, month;
+      
+      // Check if year and month are in the URL params
+      if (req.params.year && req.params.month) {
+        year = parseInt(req.params.year);
+        month = parseInt(req.params.month);
+      } 
+      // If not, check if they're in the query string
+      else if (req.query.year && req.query.month) {
+        year = parseInt(req.query.year as string);
+        month = parseInt(req.query.month as string);
+      }
+      // If still not found, use current date
+      else {
+        const currentDate = new Date();
+        year = currentDate.getFullYear();
+        month = currentDate.getMonth() + 1;
+      }
       
       if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
         return res.status(400).json({ message: "Invalid year or month" });
       }
       
+      console.log(`Fetching transactions for ${year}-${month}`);
       const transactions = await storage.getTransactionsByMonth(year, month);
       res.json(transactions);
     } catch (err) {
@@ -197,16 +214,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get monthly summary
-  router.get("/summary/:year/:month", async (req, res) => {
+  // Get monthly summary with or without params
+  router.get("/summary/:year?/:month?", async (req, res) => {
     try {
-      const year = parseInt(req.params.year);
-      const month = parseInt(req.params.month);
+      let year, month;
+      
+      // Check if year and month are in the URL params
+      if (req.params.year && req.params.month) {
+        year = parseInt(req.params.year);
+        month = parseInt(req.params.month);
+      } 
+      // If not, check if they're in the query string
+      else if (req.query.year && req.query.month) {
+        year = parseInt(req.query.year as string);
+        month = parseInt(req.query.month as string);
+      }
+      // If still not found, use current date
+      else {
+        const currentDate = new Date();
+        year = currentDate.getFullYear();
+        month = currentDate.getMonth() + 1;
+      }
       
       if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
         return res.status(400).json({ message: "Invalid year or month" });
       }
       
+      console.log(`Fetching summary for ${year}-${month}`);
       const summary = await storage.getMonthlySummary(year, month);
       res.json(summary);
     } catch (err) {

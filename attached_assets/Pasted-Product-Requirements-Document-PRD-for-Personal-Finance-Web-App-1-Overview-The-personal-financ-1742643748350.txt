@@ -1,0 +1,116 @@
+Product Requirements Document (PRD) for Personal Finance Web App
+
+1. Overview
+The personal finance web app will help users manage their monthly income and expenses by providing an intuitive interface to track recurring and ad-hoc expenses, mark payments as cleared, and visualize financial data. Users will be able to review past and future months to see their financial status.
+
+2. Objectives
+
+Provide an easy way to input, store, and manage recurring and ad-hoc expenses.
+
+Allow users to track income sources and compare them against expenses.
+
+Enable users to mark expenses as paid and cleared.
+
+Offer a dashboard for visualizing financial status.
+
+Support navigation through past and future months to track financial history and upcoming obligations.
+
+3. Features & Functionality
+
+3.1 Expense Management
+
+Users can add recurring monthly expenses.
+
+Each recurring expense must allow selection of:
+
+Fixed calendar date (e.g., 10th of each month)
+
+Fixed relative date (e.g., first Monday of the month, last day of the month)
+
+Users can add ad-hoc (one-time) expenses for a given month.
+
+Users can mark expenses as:
+
+Paid: Indicates the expense has been paid.
+
+Cleared: Confirms the payment has been successfully processed.
+
+3.2 Income Management
+
+Users can input monthly income sources (e.g., salary, side income).
+
+Income entries should include:
+
+Name
+
+Amount
+
+Payment Date
+
+3.3 Dashboard & Visualization
+
+A summary dashboard showing:
+
+Total income vs. total expenses for the current month
+
+Breakdown of expenses by category
+
+Outstanding (unpaid) expenses
+
+Cleared vs. uncleared payments
+
+Graphical representation (bar chart or pie chart) of income and expenses.
+
+3.4 Monthly View
+
+Users can navigate between months to view:
+
+Past months: Display historical financial data with clear indicators of what was paid.
+
+Future months: Show scheduled expenses and projected financial standing.
+
+Clear indicators for:
+
+Paid vs. unpaid expenses
+
+Cleared vs. uncleared payments
+
+3.5 User Experience & Navigation
+
+Simple and clean UI/UX for easy data entry and tracking.
+
+Quick-access controls to mark transactions as paid or cleared.
+
+Responsive design for mobile and desktop access.
+
+4. Technical Requirements
+
+Frontend: Next.js with Tailwind CSS for styling.
+
+Backend: PocketBase for data storage and API handling.
+
+Authentication: Email/password authentication with JWT-based session management.
+
+Data Storage: Transactions stored in a structured format with proper indexing for efficient retrieval.
+
+Hosting: Deployable on Vercel or similar platforms.
+
+5. Future Enhancements
+
+Budgeting tools for setting spending limits.
+
+Automated transaction import from bank statements.
+
+Customizable expense categories.
+
+Export financial reports to CSV or PDF.
+
+6. Success Metrics
+
+Users successfully track and manage monthly expenses and income.
+
+High engagement with the dashboard for financial visualization.
+
+Users can easily navigate between past and future months.
+
+Smooth and responsive user experience on both desktop and mobile.

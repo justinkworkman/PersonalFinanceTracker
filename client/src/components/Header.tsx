@@ -1,0 +1,68 @@
+import { useState } from "react";
+import { Link } from "wouter";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import MonthSelector from "@/components/MonthSelector";
+import TransactionModal from "@/components/TransactionModal";
+import { useCalendar } from "@/hooks/useCalendar";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+
+export default function Header() {
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  const { prevMonth, nextMonth, goToMonth } = useCalendar(selectedDate, setSelectedDate);
+  
+  const handleAddTransaction = () => {
+    setIsModalOpen(true);
+  };
+  
+  const handleTransactionCreated = () => {
+    queryClient.invalidateQueries({ queryKey: ['/api/transactions/month'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
+    
+    setIsModalOpen(false);
+    toast({
+      title: "Transaction created",
+      description: "A new transaction has been added.",
+      variant: "default",
+    });
+  };
+  
+  return (
+    <header className="bg-white shadow-sm">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center py-4">
+          <Link href="/" className="text-2xl font-bold text-primary">
+            BudgetTracker
+          </Link>
+          
+          <MonthSelector 
+            currentDate={selectedDate}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+            goToMonth={goToMonth}
+          />
+          
+          <Button
+            onClick={handleAddTransaction}
+            className="bg-primary hover:bg-blue-700 text-white"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Transaction
+          </Button>
+        </div>
+      </div>
+      
+      <TransactionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onTransactionCreated={handleTransactionCreated}
+        transaction={null}
+      />
+    </header>
+  );
+}

@@ -98,9 +98,11 @@ export class PgStorage implements IStorage {
       // Get all transactions (non-recurring and recurring, with proper monthly status if available)
       const transactions = await db.transaction(async (tx) => {
         // For fixed date transactions, get transactions within the month
+        // IMPORTANT: Only include one-time transactions (recurrence='once')
+        // Recurring transactions will be handled separately to avoid duplication
         const monthTransactions = await tx.query.transactions.findMany({
           where: and(
-            sql`date >= ${startIso} AND date <= ${endIso}`
+            sql`date >= ${startIso} AND date <= ${endIso} AND recurrence = 'once'`
           ),
         });
         

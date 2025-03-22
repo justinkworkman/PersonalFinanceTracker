@@ -44,7 +44,7 @@ export class PgStorage implements IStorage {
 
   async createCategory(category: InsertCategory): Promise<Category> {
     try {
-      const result = await db.insert(schema.categories).values(category).returning();
+      const result = await db.insert(categories).values(category).returning();
       return result[0];
     } catch (error) {
       console.error('Error creating category:', error);
@@ -55,7 +55,7 @@ export class PgStorage implements IStorage {
   async getTransactions(): Promise<Transaction[]> {
     try {
       return await db.query.transactions.findMany({
-        orderBy: [desc(schema.transactions.date)]
+        orderBy: [desc(transactions.date)]
       });
     } catch (error) {
       console.error('Error getting transactions:', error);
@@ -237,7 +237,7 @@ export class PgStorage implements IStorage {
   async getTransaction(id: number): Promise<Transaction | undefined> {
     try {
       const transaction = await db.query.transactions.findFirst({
-        where: eq(schema.transactions.id, id)
+        where: eq(transactions.id, id)
       });
       return transaction || undefined;
     } catch (error) {
@@ -252,7 +252,7 @@ export class PgStorage implements IStorage {
       
       // Explicitly match the transaction data to the table structure
       // using the same field names (snake_case) defined in the schema file
-      const result = await db.insert(schema.transactions).values({
+      const result = await db.insert(transactions).values({
         description: insertTransaction.description,
         amount: insertTransaction.amount,
         date: insertTransaction.date,
@@ -305,9 +305,9 @@ export class PgStorage implements IStorage {
       
       log(`Updating transaction ${id}: ${JSON.stringify(formattedUpdates)}`, 'pgStorage');
       
-      const result = await db.update(schema.transactions)
+      const result = await db.update(transactions)
         .set(formattedUpdates)
-        .where(eq(schema.transactions.id, id))
+        .where(eq(transactions.id, id))
         .returning();
       
       return result[0];
@@ -320,12 +320,12 @@ export class PgStorage implements IStorage {
   async deleteTransaction(id: number): Promise<boolean> {
     try {
       // First delete any monthly status entries (should cascade, but let's be explicit)
-      await db.delete(schema.monthlyTransactionStatus)
-        .where(eq(schema.monthlyTransactionStatus.transactionId, id));
+      await db.delete(monthlyTransactionStatus)
+        .where(eq(monthlyTransactionStatus.transactionId, id));
       
       // Then delete the transaction
-      const result = await db.delete(schema.transactions)
-        .where(eq(schema.transactions.id, id))
+      const result = await db.delete(transactions)
+        .where(eq(transactions.id, id))
         .returning();
       
       return result.length > 0;
@@ -339,9 +339,9 @@ export class PgStorage implements IStorage {
     try {
       const status = await db.query.monthlyTransactionStatus.findFirst({
         where: and(
-          eq(schema.monthlyTransactionStatus.transactionId, transactionId),
-          eq(schema.monthlyTransactionStatus.year, year),
-          eq(schema.monthlyTransactionStatus.month, month)
+          eq(monthlyTransactionStatus.transactionId, transactionId),
+          eq(monthlyTransactionStatus.year, year),
+          eq(monthlyTransactionStatus.month, month)
         )
       });
       
@@ -359,15 +359,15 @@ export class PgStorage implements IStorage {
       
       if (existing) {
         // Update existing record with camelCase field names
-        const result = await db.update(schema.monthlyTransactionStatus)
+        const result = await db.update(monthlyTransactionStatus)
           .set({
             status: status as any,
             isCleared: isCleared // Use camelCase for consistency with schema.ts
           })
           .where(and(
-            eq(schema.monthlyTransactionStatus.transactionId, transactionId),
-            eq(schema.monthlyTransactionStatus.year, year),
-            eq(schema.monthlyTransactionStatus.month, month)
+            eq(monthlyTransactionStatus.transactionId, transactionId),
+            eq(monthlyTransactionStatus.year, year),
+            eq(monthlyTransactionStatus.month, month)
           ))
           .returning();
         
@@ -383,7 +383,7 @@ export class PgStorage implements IStorage {
           isCleared: isCleared // Using camelCase for consistency with schema.ts
         };
         
-        const result = await db.insert(schema.monthlyTransactionStatus)
+        const result = await db.insert(monthlyTransactionStatus)
           .values([newStatus])
           .returning();
         
@@ -452,7 +452,7 @@ export class PgStorage implements IStorage {
         if (!data.name) {
           try {
             const category = await db.query.categories.findFirst({
-              where: eq(schema.categories.id, categoryId)
+              where: eq(categories.id, categoryId)
             });
             if (category) {
               data.name = category.name;
@@ -473,15 +473,13 @@ export class PgStorage implements IStorage {
       const totalTransactions = paidTransactions + pendingTransactions;
       const percentPaid = totalTransactions > 0 ? Math.round((paidTransactions / totalTransactions) * 100) : 0;
       
-      // Create category summary with percentages
-      const categorySummaries: CategorySummary[] = Array.from(categoryMap.values())
-        .map(({ id, name, amount }) => ({
-          id,
-          name,
-          amount,
-          percentage: expenses > 0 ? Math.round((amount / expenses) * 100) : 0
-        }))
-        .sort((a, b) => b.amount - a.amount);
+      // Convert category map to array 
+      const categorySummaries: CategorySummary[] = Array.from(categoryMap.entries()).map(([id, data]) => ({
+        id,
+        name: data.name,
+        amount: data.amount,
+        percentage: expenses > 0 ? Math.round((data.amount / expenses) * 100) : 0
+      })).sort((a, b) => b.amount - a.amount);
       
       return {
         income,

@@ -17,7 +17,7 @@ COPY . .
 
 # First, create a custom build script to avoid the entry point issue
 # Making sure to explicitly set the working directory and add debugging
-RUN echo '#!/bin/bash\necho "Current directory: $(pwd)"\nls -la\necho "Changing to client directory..."\ncd /app/client\necho "Now in: $(pwd)"\nls -la\necho "Running Vite build..."\nNODE_ENV=production npx vite build\necho "Build complete, checking output:"\nls -la dist' > build-client.sh
+RUN echo '#!/bin/bash\necho "Current directory: $(pwd)"\nls -la\necho "Changing to client directory..."\ncd /app/client\necho "Now in: $(pwd)"\nls -la\necho "Using Docker Vite config..."\necho "Running Vite build..."\nNODE_ENV=production npx vite build --config /app/docker-vite.config.ts\necho "Build complete, checking output:"\nls -la dist' > build-client.sh
 RUN chmod +x build-client.sh
 
 # Run our custom build script that starts in the client directory

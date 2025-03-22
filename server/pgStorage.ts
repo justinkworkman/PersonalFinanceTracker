@@ -430,11 +430,13 @@ export class PgStorage implements IStorage {
           }
         }
         
-        // Count paid vs pending transactions
-        if (status === 'paid' || status === 'cleared') {
-          paidTransactions++;
-        } else {
-          pendingTransactions++;
+        // Count paid vs pending transactions (only for expenses)
+        if (transaction.type === 'expense') {
+          if (status === 'paid' || status === 'cleared') {
+            paidTransactions++;
+          } else {
+            pendingTransactions++;
+          }
         }
       }
       

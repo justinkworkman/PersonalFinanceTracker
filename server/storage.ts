@@ -431,11 +431,13 @@ export class MemStorage implements IStorage {
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-based
     
-    const totalTransactions = transactions.length;
+    // Only count expense transactions for payment status tracking
+    const expenseTransactions = transactions.filter(t => t.type === "expense");
+    const totalTransactions = expenseTransactions.length;
     
     // Count transactions marked as paid or cleared
     // If this is a future month, only count as paid if they have an explicit monthly status override
-    const paidTransactions = transactions.filter(t => {
+    const paidTransactions = expenseTransactions.filter(t => {
       // Check if this is a future month
       const isFutureMonth = (year > currentYear || (year === currentYear && month > currentMonth));
       

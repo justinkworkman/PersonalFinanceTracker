@@ -245,24 +245,22 @@ export class PgStorage implements IStorage {
     try {
       log(`Creating transaction: ${JSON.stringify(insertTransaction)}`, 'pgStorage');
       
-      // Prepare transaction data with correct field names
-      const transactionData = {
+      // Explicitly match the transaction data to the table structure
+      // using the same field names (snake_case) defined in the schema file
+      const result = await db.insert(schema.transactions).values({
         description: insertTransaction.description,
         amount: insertTransaction.amount,
         date: insertTransaction.date,
         type: insertTransaction.type,
-        category_id: insertTransaction.categoryId || null, // Snake case for database columns
+        category_id: insertTransaction.categoryId || null,
         status: insertTransaction.status || 'pending',
         recurrence: insertTransaction.recurrence || 'once',
-        is_cleared: insertTransaction.isCleared || false, // Snake case
-        relative_date_type: insertTransaction.relativeDateType || 'fixed', // Snake case
-        original_date: insertTransaction.originalDate || null, // Snake case
-        day_of_month: insertTransaction.dayOfMonth || null, // Snake case
-        created_at: new Date().toISOString() // Snake case, add current timestamp
-      };
-      
-      // Use drizzle-orm insert function
-      const result = await db.insert(schema.transactions).values(transactionData).returning();
+        is_cleared: insertTransaction.isCleared || false,
+        relative_date_type: insertTransaction.relativeDateType || 'fixed',
+        original_date: insertTransaction.originalDate || null,
+        day_of_month: insertTransaction.dayOfMonth || null,
+        created_at: new Date().toISOString() 
+      } as any).returning();
       
       log(`Created transaction: ${JSON.stringify(result[0])}`, 'pgStorage');
       return result[0];
@@ -280,12 +278,27 @@ export class PgStorage implements IStorage {
         return undefined;
       }
       
-      // Format dates if provided
-      const formattedUpdates = {
-        ...updates,
-        date: updates.date ? new Date(updates.date).toISOString() : undefined,
-        originalDate: updates.originalDate ? new Date(updates.originalDate).toISOString() : undefined
-      };
+      // Convert camelCase property names to snake_case for the database
+      const formattedUpdates: any = {};
+      
+      if (updates.description !== undefined) formattedUpdates.description = updates.description;
+      if (updates.amount !== undefined) formattedUpdates.amount = updates.amount;
+      if (updates.date !== undefined) formattedUpdates.date = updates.date;
+      if (updates.type !== undefined) formattedUpdates.type = updates.type;
+      if (updates.categoryId !== undefined) formattedUpdates.category_id = updates.categoryId;
+      if (updates.status !== undefined) formattedUpdates.status = updates.status;
+      if (updates.recurrence !== undefined) formattedUpdates.recurrence = updates.recurrence;
+      if (updates.isCleared !== undefined) formattedUpdates.is_cleared = updates.isCleared;
+      if (updates.relativeDateType !== undefined) formattedUpdates.relative_date_type = updates.relativeDateType;
+      if (updates.originalDate !== undefined) formattedUpdates.original_date = updates.originalDate;
+      if (updates.dayOfMonth !== undefined) formattedUpdates.day_of_month = updates.dayOfMonth;
+      
+      // Only proceed if there's something to update
+      if (Object.keys(formattedUpdates).length === 0) {
+        return transaction;
+      }
+      
+      log(`Updating transaction ${id}: ${JSON.stringify(formattedUpdates)}`, 'pgStorage');
       
       const result = await db.update(schema.transactions)
         .set(formattedUpdates)
@@ -340,11 +353,11 @@ export class PgStorage implements IStorage {
       const existing = await this.getMonthlyStatus(transactionId, year, month);
       
       if (existing) {
-        // Update existing record
+        // Update existing record with snake_case field names
         const result = await db.update(schema.monthlyTransactionStatus)
           .set({
             status: status as any,
-            isCleared: isCleared
+            is_cleared: isCleared // Using snake_case for the database
           })
           .where(and(
             eq(schema.monthlyTransactionStatus.transactionId, transactionId),
@@ -356,13 +369,13 @@ export class PgStorage implements IStorage {
         log(`Updated monthly status for transaction ${transactionId} in ${year}-${month}: ${JSON.stringify(result[0])}`, 'pgStorage');
         return result[0];
       } else {
-        // Create new record
+        // Create new record with snake_case field names
         const newStatus = {
-          transactionId,
+          transaction_id: transactionId, // Using snake_case for the database
           year,
           month,
           status: status as any,
-          isCleared
+          is_cleared: isCleared // Using snake_case for the database
         };
         
         const result = await db.insert(schema.monthlyTransactionStatus)

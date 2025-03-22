@@ -353,11 +353,11 @@ export class PgStorage implements IStorage {
       const existing = await this.getMonthlyStatus(transactionId, year, month);
       
       if (existing) {
-        // Update existing record with snake_case field names
+        // Update existing record with camelCase field names
         const result = await db.update(schema.monthlyTransactionStatus)
           .set({
             status: status as any,
-            is_cleared: isCleared // Using snake_case for the database
+            isCleared: isCleared // Use camelCase for consistency with schema.ts
           })
           .where(and(
             eq(schema.monthlyTransactionStatus.transactionId, transactionId),
@@ -369,17 +369,17 @@ export class PgStorage implements IStorage {
         log(`Updated monthly status for transaction ${transactionId} in ${year}-${month}: ${JSON.stringify(result[0])}`, 'pgStorage');
         return result[0];
       } else {
-        // Create new record with snake_case field names
+        // Create new record with camelCase field names
         const newStatus = {
-          transaction_id: transactionId, // Using snake_case for the database
+          transactionId: transactionId, // Using camelCase for consistency with schema.ts
           year,
           month,
           status: status as any,
-          is_cleared: isCleared // Using snake_case for the database
+          isCleared: isCleared // Using camelCase for consistency with schema.ts
         };
         
         const result = await db.insert(schema.monthlyTransactionStatus)
-          .values(newStatus)
+          .values([newStatus])
           .returning();
         
         log(`Set monthly status for transaction ${transactionId} in ${year}-${month}: ${JSON.stringify(result[0])}`, 'pgStorage');

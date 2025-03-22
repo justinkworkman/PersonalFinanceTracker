@@ -91,6 +91,11 @@ export default function TransactionModal({
 }: TransactionModalProps) {
   // State to track if we're using a relative date
   const [showRelativeDateOptions, setShowRelativeDateOptions] = useState(false);
+  // State to track delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  
+  // Get delete transaction mutation
+  const deleteTransaction = useDeleteTransaction();
   
   // Get categories from the API
   const { data: categories } = useQuery<Category[]>({
@@ -559,13 +564,57 @@ export default function TransactionModal({
               )}
             />
             
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {transaction ? "Update" : "Save"} Transaction
-              </Button>
+            <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+              <div className="flex w-full sm:w-auto order-2 sm:order-1 justify-start">
+                {transaction && (
+                  <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        type="button" 
+                        variant="destructive"
+                        className="flex items-center gap-1"
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete this transaction? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={async () => {
+                            if (transaction) {
+                              try {
+                                await deleteTransaction.mutateAsync(transaction.id);
+                                onClose();
+                                onTransactionCreated();
+                              } catch (error) {
+                                console.error("Error deleting transaction:", error);
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto sm:order-2 justify-end">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {transaction ? "Update" : "Save"} Transaction
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

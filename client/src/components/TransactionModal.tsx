@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -37,7 +37,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
-import { insertTransactionSchema, Transaction, Category } from "@shared/schema";
+import { 
+  insertTransactionSchema, 
+  Transaction, 
+  Category, 
+  getRelativeDate,
+  getDaysInMonth
+} from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +54,9 @@ const formSchema = insertTransactionSchema.extend({
     (a) => parseFloat(a as string),
     z.number().positive()
   ),
+  // Fields for relative date handling
+  relativeDateType: z.enum(["fixed", "first_day", "last_day", "custom"]).default("fixed"),
+  dayOfMonth: z.number().optional(),
 });
 
 // Form values type
@@ -66,6 +75,9 @@ export default function TransactionModal({
   onTransactionCreated,
   transaction 
 }: TransactionModalProps) {
+  // State to track if we're using a relative date
+  const [showRelativeDateOptions, setShowRelativeDateOptions] = useState(false);
+  
   // Get categories from the API
   const { data: categories } = useQuery<Category[]>({
     queryKey: ['/api/categories']
@@ -82,13 +94,18 @@ export default function TransactionModal({
       status: "pending",
       recurrence: "once",
       categoryId: undefined,
-      isCleared: false
+      isCleared: false,
+      relativeDateType: "fixed",
+      dayOfMonth: undefined
     },
   });
   
   // Update form with transaction data when editing
   useEffect(() => {
     if (transaction) {
+      const isRelativeDate = transaction.relativeDateType && transaction.relativeDateType !== "fixed";
+      setShowRelativeDateOptions(isRelativeDate);
+      
       form.reset({
         type: transaction.type,
         description: transaction.description,
@@ -97,9 +114,12 @@ export default function TransactionModal({
         categoryId: transaction.categoryId,
         status: transaction.status,
         recurrence: transaction.recurrence,
-        isCleared: transaction.isCleared
+        isCleared: transaction.isCleared,
+        relativeDateType: transaction.relativeDateType || "fixed",
+        dayOfMonth: transaction.dayOfMonth || undefined
       });
     } else {
+      setShowRelativeDateOptions(false);
       form.reset({
         type: "expense",
         description: "",
@@ -108,7 +128,9 @@ export default function TransactionModal({
         status: "pending",
         recurrence: "once",
         categoryId: undefined,
-        isCleared: false
+        isCleared: false,
+        relativeDateType: "fixed",
+        dayOfMonth: undefined
       });
     }
   }, [transaction, form]);
@@ -118,15 +140,40 @@ export default function TransactionModal({
     category => form.watch("type") === category.type
   ) || [];
   
+  // Watch for recurrence changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      // If recurrence changes to "once", disable relative date options
+      if (name === "recurrence" && value.recurrence === "once" && showRelativeDateOptions) {
+        setShowRelativeDateOptions(false);
+        form.setValue("relativeDateType", "fixed");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, showRelativeDateOptions]);
+
   // Handle form submission
   const onSubmit = async (data: FormValues) => {
     try {
+      // Process data before submission
+      let submissionData = { ...data };
+      
+      // Handle relative date fields
+      if (showRelativeDateOptions) {
+        // When using relative dates, we'll use the selected date as the original date reference
+        submissionData.originalDate = data.date.toISOString();
+      } else {
+        // For fixed dates, clear relative date fields
+        submissionData.relativeDateType = "fixed";
+        submissionData.dayOfMonth = null;
+      }
+      
       if (transaction) {
         // Update existing transaction
-        await apiRequest("PATCH", `/api/transactions/${transaction.id}`, data);
+        await apiRequest("PATCH", `/api/transactions/${transaction.id}`, submissionData);
       } else {
         // Create new transaction
-        await apiRequest("POST", "/api/transactions", data);
+        await apiRequest("POST", "/api/transactions", submissionData);
       }
       onTransactionCreated();
     } catch (error) {
@@ -246,45 +293,131 @@ export default function TransactionModal({
               )}
             />
             
-            {/* Date */}
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
+            {/* Date Selection */}
+            <div className="space-y-4">
+              {/* Relative Date Toggle */}
+              {form.watch("recurrence") !== "once" && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="useRelativeDate"
+                    checked={showRelativeDateOptions}
+                    onCheckedChange={(checked) => {
+                      setShowRelativeDateOptions(!!checked);
+                      if (checked) {
+                        form.setValue("relativeDateType", "first_day");
+                      } else {
+                        form.setValue("relativeDateType", "fixed");
+                        form.setValue("dayOfMonth", undefined);
+                      }
+                    }}
+                  />
+                  <label htmlFor="useRelativeDate" className="text-sm font-medium">
+                    Use relative date (e.g., first or last day of month)
+                  </label>
+                </div>
               )}
-            />
+              
+              {showRelativeDateOptions ? (
+                <>
+                  {/* Relative Date Type Selector */}
+                  <FormField
+                    control={form.control}
+                    name="relativeDateType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date Type</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            // If we switch to custom, initialize dayOfMonth
+                            if (value === "custom" && !form.getValues("dayOfMonth")) {
+                              form.setValue("dayOfMonth", 15);
+                            }
+                          }}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select date type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="first_day">First day of month</SelectItem>
+                            <SelectItem value="last_day">Last day of month</SelectItem>
+                            <SelectItem value="custom">Custom day of month</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  {/* Day of Month Input (for custom) */}
+                  {form.watch("relativeDateType") === "custom" && (
+                    <FormField
+                      control={form.control}
+                      name="dayOfMonth"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Day of Month</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="31"
+                              {...field}
+                              value={field.value || ""}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </>
+              ) : (
+                /* Standard Date Picker */
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
             
             {/* Recurrence */}
             <FormField

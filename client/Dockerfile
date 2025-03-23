@@ -1,67 +1,32 @@
-FROM node:20-slim AS build
-
+# Use the official Node.js image for building
+FROM node:18 AS build
+ 
+# Set the working directory in the container
 WORKDIR /app
 
-# Accept build arguments
-ARG NODE_ENV=production
-
-# Set environment variables
-ENV NODE_ENV=${NODE_ENV}
-
-# Copy package files and install dependencies
+# Copy package.json and package-lock.json (if you have it)
 COPY package*.json ./
+
+# Install dependencies
 RUN npm install
 
-# Copy the entire project (needed for build context)
+# Copy the rest of the application code
 COPY . .
 
-# First, create a custom build script to avoid the entry point issue
-# Making sure to explicitly set the working directory and add debugging
-RUN echo '#!/bin/bash\necho "Current directory: $(pwd)"\nls -la\necho "Changing to client directory..."\ncd /app/client\necho "Now in: $(pwd)"\nls -la\necho "Using Docker Vite config..."\necho "Running Vite build..."\nNODE_ENV=production npx vite build --config /app/docker-vite.config.ts\necho "Build complete, checking output:"\nls -la dist' > build-client.sh
-RUN chmod +x build-client.sh
+# Build the Next.js application
+RUN npm run build
 
-# Run our custom build script that starts in the client directory
-RUN ./build-client.sh
+# Use a smaller image for production (optional, but recommended)
+FROM node:18-slim
 
-# Add a step to check what's in the dist directory
-RUN ls -la /app/client/dist || echo "client/dist not found"
+# Set the working directory in the container
+WORKDIR /app
 
-# Use nginx to serve the static files
-FROM nginx:alpine
+# Copy only the necessary files from the build stage
+COPY --from=build /app ./
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Expose the port Next.js will run on (3000)
+EXPOSE 3000
 
-# Copy the built client files to nginx's serving directory
-# In development build, Vite outputs to client/dist
-# But for Docker build, it should be in client/dist after our custom script
-COPY --from=build /app/client/dist /usr/share/nginx/html
-
-# Copy a custom nginx configuration to properly handle SPA routing
-RUN echo 'server { \
-    listen 80; \
-    location / { \
-        root /usr/share/nginx/html; \
-        index index.html; \
-        try_files $uri $uri/ /index.html; \
-    } \
-    location /api/ { \
-        proxy_pass http://server:5000/api/; \
-        proxy_http_version 1.1; \
-        proxy_set_header Upgrade $http_upgrade; \
-        proxy_set_header Connection "upgrade"; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-    } \
-    # Health check endpoint \
-    location /health { \
-        access_log off; \
-        return 200 "healthy\n"; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+# Start the Next.js server in production mode
+CMD ["npm", "run", "start"]
